@@ -2,6 +2,7 @@ import os
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import release_config  # noqa: E402
@@ -23,7 +24,8 @@ class ReleaseConfigTests(unittest.TestCase):
         self.assertEqual([(t, o) for t, o, _ in todo], [('x1slte', 'twrp'), ('x1slte', 'restore')])
         self.assertEqual([t for t, _ in skipped], ['y2s'])
         n = release_config.names(c, 'x1slte', '20260101')
-        self.assertEqual(n['twrp'], 'Jesvi-iOS_0.1.1_20260101_x1slte.zip')
+        self.assertEqual(c['MODE'], 'fresh')
+        self.assertEqual(n['twrp'], 'Jesvi-iOS_0.1.1_20260101_fresh_x1slte.zip')
         self.assertEqual(n['restore'], 'Jesvi-iOS-Restore_0.1.1_20260101_x1slte.zip')
 
     def test_preflight_names_say_so(self):
@@ -31,6 +33,39 @@ class ReleaseConfigTests(unittest.TestCase):
         n = release_config.names(c, 'x1slte', '20260101')
         self.assertTrue(n['twrp'].endswith('_preflight.zip'))
         self.assertTrue(n['restore'].endswith('_preflight.zip'))
+
+    def test_missing_mode_defaults_to_fresh_but_writes_stay_explicit(self):
+        c = self.conf('')
+        self.assertEqual(c['MODE'], 'fresh')
+        self.assertFalse(c['WRITES'])
+
+    def test_install_modes_produce_distinct_names_and_reach_packager(self):
+        names = set()
+        for mode in ('choose', 'fresh', 'update'):
+            with self.subTest(mode=mode):
+                c = self.conf('', f'MODE={mode}', 'WRITES=true', 'OUTPUTS=twrp preflight restore')
+                n = release_config.names(c, 'x1slte', '20260101')
+                names.add(n['twrp'])
+                if mode != 'choose':
+                    self.assertIn(f'_{mode}_x1slte', n['twrp'])
+                self.assertNotIn(f'_{mode}_', n['restore'])
+                with mock.patch('release_config.bundle_for', return_value=Path('/candidate')), \
+                     mock.patch('twrp_package.package') as package, \
+                     mock.patch('twrp_package.package_restore'), \
+                     mock.patch('builtins.print'):
+                    release_config.build(c)
+                self.assertEqual([call.args[2:] for call in package.call_args_list],
+                                 [(mode, True), (mode, False)])
+        self.assertEqual(len(names), 3)
+
+    def test_dry_run_shows_install_policy_without_building(self):
+        c = self.conf('MODE=fresh\nWRITES=true\nOUTPUTS=twrp preflight\n')
+        with mock.patch('builtins.print') as output, mock.patch('release_config.bundle_for') as bundle:
+            release_config.build(c, dry_run=True)
+        bundle.assert_not_called()
+        messages = [call.args[0] for call in output.call_args_list]
+        self.assertIn('  install mode=fresh; writes=True', messages)
+        self.assertIn('  install mode=fresh; writes=False', messages)
 
     def test_bad_settings_fail(self):
         for text in ('BOGUS=1\n', 'OUTPUTS=odin\n', 'MODE=wipe\n', 'WRITES=yes\n',

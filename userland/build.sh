@@ -198,6 +198,7 @@ cp com.redwood.varstore.plist root/LaunchDaemons/
 # Normal boot only mounts existing HFS data. The offline installer owns initialization;
 # do not put a format kit beside init or make a missing filesystem authorize formatting.
 echo "Darwin on redwood: image built $(date '+%Y-%m-%d %H:%M')" > root/etc/motd
+date +%s > root/etc/build-time
 # 300000 bytes, byte i = (i*31 + (i>>8)) & 0xff; init verifies it through read() and mmap()
 python3 -c "import sys; sys.stdout.buffer.write(bytes((i*31 + (i>>8)) & 0xff for i in range(300000)))" > root/share/pattern.bin
 # EXTRA_SHARE: whole directories of data for a one-off diagnostic, each under its own name. Here and
@@ -318,6 +319,7 @@ if [ -d $IOS/rootfs/usr/lib ]; then
 		$DYN -fobjc-arc -framework Foundation -framework SystemConfiguration -o obj/net_test src/net_test.m
 		# (the kernel's log over the network while iOS runs: PLANS/09-standalone.md, P4)
 		$DYN -o obj/rwlogd src/rwlogd.c
+		$DYN -o obj/clockd src/clockd.c
 		$DYN -o obj/m2m_mark src/m2m_mark.c
 		$DYN -framework CoreFoundation -o obj/prefset src/prefset.c
 		${LDID:-ldid} -Cadhoc -S obj/prefset
@@ -524,6 +526,9 @@ if [ -d $IOS/rootfs/usr/lib ]; then
 	[ -f obj/metal_test ] && cp obj/metal_test root/bin/
 	[ -f obj/net_test ] && cp obj/net_test root/bin/
 	[ -f obj/rwlogd ] && cp obj/rwlogd root/bin/
+	# Clock restoration must not depend on the debug HTTP server being available.
+	[ -f obj/clockd ] || { echo 'build.sh: clockd missing; rebuild userland from source' >&2; exit 1; }
+	cp obj/clockd root/bin/
 	[ -f obj/m2m_mark ] && cp obj/m2m_mark root/bin/
 	[ -f obj/rwsys ] && cp obj/rwsys root/bin/          # (sysctl strings from the Mac: the sound debug port)
 	[ -f obj/bluetool_stub ] && cp obj/bluetool_stub root/bin/
@@ -707,6 +712,7 @@ if [ -d $IOS/rootfs/usr/lib ]; then
 	# and not by what select-system.py extracted here (--root-volume; seven jobs turn on the difference,
 	# fairplayd among them).
 	cp com.redwood.demo.plist com.redwood.wifi.plist com.redwood.thermald.plist com.redwood.lpmd.plist com.redwood.logd.plist com.redwood.cellular.plist root/LaunchDaemons/
+	cp com.redwood.clockd.plist root/LaunchDaemons/
 	cp com.redwood.account-store.plist root/LaunchDaemons/     # (the Store relay at every boot, if installed)
 	[ ! -x root/bin/redwood-motiond ] || cp com.redwood.motion-wake.plist root/LaunchDaemons/
 	[ ! -x root/bin/redwood-fpd ] || cp com.redwood.fpd.plist root/LaunchDaemons/

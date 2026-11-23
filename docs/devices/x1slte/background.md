@@ -8,7 +8,7 @@ services, the known iOS spinners, every debug switch below, and the last cellula
 | Cause | Cost | Fix |
 | --- | --- | --- |
 | `aggregated` (powerlog's daily archiver) making one archive per day since 1970 | 92 % of a core all the time; 12,691 files, 596 MB | moved to /var/root/powerlog-backup-* and restarted (0 %); root cause: the clock |
-| the clock starts every boot at 1970 (no RTC read) | iOS daemons date their records 1970 | `init` sets the clock from /private/var/db/redwood-time before iOS starts; `rwlogd` saves the time each minute (8d684ae, next boot image) |
+| the clock starts every boot at 1970 (no RTC read) | iOS daemons date their records 1970 | `init` restores the later of saved UTC and image build time before iOS starts; native `clockd` obtains network UTC and saves time each minute |
 | redwood-cellulard writing a line per modem doorbell / IPC message | 38 KB/min of log (~55 MB/day) | quiet by default, log cut back at 8 MB |
 
 `aggregated` itself must stay allowed: Settings > Battery's power log runs inside it (userland/mkjobs.py DENY comment).
@@ -20,12 +20,35 @@ If it spins again: `ls /private/var/containers/Shared/SystemGroup/*/Library/Batt
 | Job | What | Needed for |
 | --- | --- | --- |
 | com.redwood.cellular | redwood-cellulard: modem, data, IMS PDN, starts redwood-ims | cellular |
-| com.redwood.logd | rwlogd: the log/HTTP server on :8080, saves the clock | development, clock |
+| com.redwood.logd | rwlogd: the log/HTTP server on :8080 | development |
+| com.redwood.clockd | native UTC bootstrap and persistent clock snapshots | clock |
 | com.redwood.sshd | ssh | development |
 | com.redwood.lpmd | low-power-mode helper | battery |
 | com.redwood.finder-host | registers Jesvi Files, then exits | Files, Finder |
 | com.redwood.demo | runs /redwood/etc/rc.jobs once at boot (self-tests, `cpu_test 240`: a short burst 4 min after boot) | boot checks; `RC_JOBS=` at build time picks another list |
 | com.redwood.varstore, thermald, wifi | one-shot / on demand | |
+
+## Clock restoration and network synchronization
+
+The native clock service (`userland/src/clockd.c`) starts with launchd and retries
+network time every minute until one valid reply sets system UTC, without rebooting.
+It then leaves later manual corrections alone and saves the clock every minute,
+using a monotonic timer so a backward manual correction does not stall saving.
+Persistence is independent of the debug HTTP server. Both userland build paths
+compile/install the service; a missing prebuilt is a build error.
+
+On a fresh/offline boot, init uses the image's `/redwood/etc/build-time` if no newer
+valid snapshot exists. That avoids 1970 records before networking starts, but is
+only an estimate. This port still has no hardware RTC reader, so time spent powered
+off cannot be recovered while offline. UTC synchronization does not determine the
+user's timezone. The service bootstraps once per start; it is not a full NTP drift
+discipline daemon or an implementation of Apple's timed XPC service.
+
+Unicast SNTP uses a connected UDP socket, a random originate token, bounded receive
+timeout and stratum/leap/version/mode checks per [RFC 4330 section 5](https://www.rfc-editor.org/rfc/rfc4330#section-5).
+Replies with invalid timestamps are rejected; the 2036 NTP era rollover is handled.
+SNTP is unauthenticated. It queries `time.apple.com`, then fallback servers
+`time.cloudflare.com` and `pool.ntp.org`; UDP/123 and DNS must be reachable.
 
 ## Debug switches
 

@@ -312,30 +312,6 @@ say_addresses(void)
 	}
 }
 
-/* The time for init's clock_restore (src/init.c): once a minute, only once the clock is real (after 2023). */
-static void
-save_clock(void)
-{
-	static time_t said;
-	time_t now = time(NULL);
-	char b[24];
-	int n, fd;
-
-	if (now < 1700000000 || now - said < 60) {
-		return;
-	}
-	said = now;
-	n = snprintf(b, sizeof(b), "%ld\n", (long)now);
-	fd = open("/private/var/db/redwood-time.tmp", O_WRONLY | O_CREAT | O_TRUNC, 0644);
-	if (fd >= 0) {
-		if (write(fd, b, (size_t)n) == n && close(fd) == 0) {
-			rename("/private/var/db/redwood-time.tmp", "/private/var/db/redwood-time");
-		} else {
-			close(fd);
-		}
-	}
-}
-
 int
 main(void)
 {
@@ -358,7 +334,6 @@ main(void)
 		struct timeval tv = { 2, 0 };
 		fd_set fds;
 
-		save_clock();
 		say_addresses();
 		FD_ZERO(&fds);
 		FD_SET(s, &fds);

@@ -64,6 +64,8 @@ $DYN -framework CoreFoundation -framework IOKit -o obj/metal_props src/metal_pro
 # whenever it changes -- /menu (hand back to the loader) lives in it
 $DYN -o obj/rwlogd src/rwlogd.c
 cp obj/rwlogd ../prebuilt/userland/rwlogd   # the macOS path copies prebuilt/* into obj/, so that is where it must land
+$DYN -o obj/clockd src/clockd.c
+cp obj/clockd ../prebuilt/userland/clockd
 # The macOS image path uses PREBUILT=1 below: refresh AOD's own tracked inputs
 # too, so a fresh root never depends on an older data-volume tweak.
 bash ../tools/aod/build.sh

@@ -3,8 +3,13 @@ name: Private TWRP release
 on:
   workflow_dispatch:
     inputs:
+      mode:
+        description: Install mode (fresh erases userdata; update requires existing iOS data)
+        type: choice
+        options: [from-release.conf, choose, fresh, update]
+        default: from-release.conf
       writes:
-        description: Override release.conf WRITES (hardware-unqualified writes after physical confirmation)
+        description: Override WRITES (installs proceed after 45 seconds; fresh erases userdata)
         type: choice
         options: [from-release.conf, 'true', 'false']
         default: from-release.conf
@@ -42,8 +47,10 @@ jobs:
           HACKIOS_IMAGE_CACHE: /var/cache/exynos990/private-images
           WRITES_INPUT: ${{ inputs.writes }}
           OUTPUTS_INPUT: ${{ inputs.outputs }}
+          MODE_INPUT: ${{ inputs.mode }}
         run: |
           args=(--set OUT=dist/release)
+          if [ "$MODE_INPUT" != from-release.conf ]; then args+=(--set "MODE=$MODE_INPUT"); fi
           if [ "$WRITES_INPUT" != from-release.conf ]; then args+=(--set "WRITES=$WRITES_INPUT"); fi
           if [ -n "$OUTPUTS_INPUT" ]; then args+=(--set "OUTPUTS=$OUTPUTS_INPUT"); fi
           ./build.sh release --dry-run "${args[@]}"

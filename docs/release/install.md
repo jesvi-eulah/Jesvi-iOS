@@ -31,14 +31,16 @@ at once **Volume Up + Power** until TWRP appears.
    - **with a computer:** `tools/install/twrp-install.sh Jesvi-iOS_<version>_x1slte.zip`, or
    - **without one:** put the ZIP on a **microSD card or USB-C stick** (never internal storage: it is about to be
      wiped), then TWRP → *Install* → pick the ZIP.
-3. **Hold Volume Up for 3 seconds** when asked to confirm the install, and again when asked to confirm initializing
-   the data partition. Volume Down or Power cancels; nothing is written before the first confirmation.
+3. **Fresh install is the default and erases existing Android/iOS userdata.** The write-enabled installer
+   starts automatically after a **45-second cancel window**. Volume Down or Power cancels;
+   hold Volume Up for three seconds to proceed early. No partition writes happen during the window.
 4. Before it writes iOS, the installer saves your ROM's partition map at the end of `super` (used by the way back).
 5. Reboot: the Apple logo from power-on, then iOS's first setup.
 
 ## B. Update an S20 that already runs Jesvi iOS
 
-Your data, apps and settings are kept.
+Use a ZIP explicitly built with `MODE=update` (or `MODE=choose`) to keep data, apps
+and settings. The default `MODE=fresh` ZIP erases them, including on an existing iOS phone.
 
 1. Boot TWRP (iOS lives where TWRP was, so flash TWRP with Odin first if it is not there).
 2. `tools/install/twrp-install.sh Jesvi-iOS_<version>_x1slte.zip` (cable straight into the computer).
@@ -78,7 +80,8 @@ partition table were never touched.
 - **Computer does not see the phone in TWRP:** cable straight into the computer, another port or cable; in TWRP
   *Mount → Enable MTP*; unplug and plug again.
 - **"battery must report at least 50 percent":** charge in TWRP and run it again.
-- **"physical confirmation timed out":** you have 45 seconds to hold Volume Up for 3 seconds; run it again.
+- **"physical confirmation timed out":** restore requires a three-second Volume Up hold within 45 seconds.
+  Write-enabled iOS installs instead proceed automatically after their 45-second cancel window.
 - **"unqualified recovery product" or "model/bootloader mismatch":** not an SM-G980F on G980FXXSNHYB7: not supported.
 - **The phone runs hot in TWRP:** let it cool; TWRP has none of iOS's thermal control.
 
@@ -166,7 +169,7 @@ path are tested against the actual device.
    important partition backups and personal-data backups off the phone.
 3. Enter the qualified TWRP/root recovery environment. Verify package identity,
    every full-image hash and expected sizes. Confirm adequate power and host space.
-4. Show the destructive scope and require explicit fresh-install confirmation:
+4. Show the destructive scope and the 45-second cancel window before fresh installation:
    Android in `super` is replaced, userdata is initialized for HFSX and TWRP is
    overwritten. Keep the package/backup on the host or suitable external storage;
    its only copy must not be on userdata.

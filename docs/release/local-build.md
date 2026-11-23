@@ -11,7 +11,9 @@ checks its content/recipe receipt, generates the loader identity from Apple’s
 small device-tree member, locks the prepared inputs, compiles the kernel,
 OpenH264, Mesa/AIR and userland, assembles images, packages and verifies the
 candidate, and writes a **TWRP ZIP by default**. Until hardware qualification, the default
-is read-only preflight; add `--experimental` for the physical-confirmation writer.
+is read-only preflight; add `--experimental` for the writer. The default mode is fresh:
+it erases userdata after a 45-second cancel window. Use an explicitly packaged
+`--mode update` ZIP to preserve existing iOS data.
 The outputs are:
 
 ```text

@@ -12,22 +12,37 @@ JESVI_TARGETS="x1slte y2s" ./build.sh release   # environment override
 
 | Key | Meaning |
 |---|---|
-| `NAME`, `VERSION` | File names: `NAME_VERSION_YYYYMMDD_target.zip`, `NAME-Restore_...zip`; `_preflight` is added when writes are off |
+| `NAME`, `VERSION` | File names: `NAME_VERSION_YYYYMMDD_target.zip`, `NAME-Restore_...zip`; explicit modes add `_fresh` or `_update` before the target; `_preflight` is added when writes are off |
 | `TARGETS` | Device ids from `devices/exynos990/`. Targets without a measured profile are listed as SKIP |
 | `OUTPUTS` | `twrp` (iOS installer), `preflight` (check-only), `restore` (back to Android), `tar` (images for developers) |
-| `MODE` | `choose` (keep iOS data if present, else fresh), `update`, `fresh` |
-| `WRITES` | `true`: ZIPs write after the Volume Up holds. `false`: every ZIP only checks the phone |
+| `MODE` | `fresh` (default; erases existing userdata), `choose` (preserve valid iOS data, else fresh), `update` (requires existing iOS data) |
+| `WRITES` | `true`: installs proceed after a 45-second cancel window; restore requires a Volume Up hold. `false` (default): every ZIP only checks the phone |
 | `BUNDLE` | Existing verified candidate to package. Empty: full local build first (macOS, private Apple inputs, ~25 GiB free) |
 | `OUT` | Output directory inside `dist/` |
 
-Each ZIP gets `.sha256` and `.build.json` (source commit, Go version, writes flag).
+Each ZIP gets `.sha256` and `.build.json` (source commit, Go version, install mode, writes flag).
+
+For an explicit first installation, build with:
+
+```sh
+./build.sh release --set MODE=fresh --set WRITES=true --set OUTPUTS=twrp
+```
+
+This erases existing userdata after a 45-second cancel window, even on an existing
+iOS installation. Volume Down/Power cancels; holding Volume Up for three seconds
+proceeds early. Read-only preflights do not enter this window. Use off-device
+backups first. `MODE=update` requires matching existing iOS userdata and cannot
+initialize an Android phone. Unmounting or wiping Android cache does not change
+an update-only ZIP's mode; rebuild the ZIP. Optional `MODE=choose` selects fresh
+on non-HFS userdata, preserves valid iOS data, and refuses damaged or differently
+sized iOS data. The dry-run/build plan prints the mode and whether writes are enabled.
 
 ## GitHub Actions
 
 | Workflow | Runner | Output |
 |---|---|---|
 | `ci.yml` | public | tests, Go recovery checks, kernel, and **restore ZIPs** for every measured target (artifact `restore-zips-<sha>`) |
-| `private-images.yml` | self-hosted macOS with private Apple inputs | everything `release.conf` asks for (`writes`/`outputs` inputs override it); artifact `jesvi-ios-<sha>-<run>` |
+| `private-images.yml` | self-hosted macOS with private Apple inputs | everything `release.conf` asks for (`mode`/`writes`/`outputs` inputs override it); artifact `jesvi-ios-<sha>-<run>` |
 | `draft-release.yml` | public, on `v*` tags | draft release with the restore ZIPs attached |
 
 The restore ZIP carries no Apple or Samsung files, so public runners can build it.

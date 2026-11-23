@@ -87,7 +87,7 @@ metadata; these are different checks.
    not zero the rest of super: its tail is reserved for loader logs.
 8. **Initialize data only on an explicit fresh install.** Normal init now only mounts an existing HFSX volume. An absent/damaged header,
    read failure or failed mount halts persistent-data boot without formatting.
-   The experimental offline initializer and its physical fresh-install confirmation
+   The experimental offline initializer and its fresh-install cancel window
    are implemented; hardware qualification remains. Updates must preserve userdata.
 9. **Only after successful readback:** record the installed version/layout marker,
    save the log on the host, then reboot. Do not reboot on failure or falsely claim

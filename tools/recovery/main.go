@@ -20,6 +20,29 @@ func uiText(s string) string {
 }
 
 var configSHA string // Bound by builder to exact metadata; no arbitrary destinations.
+
+func selectInstallMode(requested string, valid, recognizable bool) (string, error) {
+	switch requested {
+	case "fresh":
+		return "fresh", nil
+	case "update":
+		if !valid {
+			return "", errors.New("this is an update-only package, but matching iOS userdata was not found; for a first install rebuild with --set MODE=fresh (erases userdata after confirmation), or MODE=choose for automatic detection; back up existing data first")
+		}
+		return "update", nil
+	case "choose":
+		if valid {
+			return "update", nil
+		}
+		if recognizable {
+			return "", errors.New("the iOS data here is damaged or a different size than this package (IOS_DATA_GB); refusing to erase it automatically: back it up, then rebuild with --set MODE=fresh")
+		}
+		return "fresh", nil
+	default:
+		return "", errors.New("unsupported install mode")
+	}
+}
+
 func run() error {
 	args := os.Args
 	if len(args) == 3 && args[1] == "--inspect" {
@@ -116,11 +139,15 @@ func run() error {
 		log("PREFLIGHT ONLY: no partitions opened for writing. No reboot.")
 		return nil
 	}
-	ui.begin("Waiting for your confirmation")
+	if b.Config.Action == "restore" {
+		ui.begin("Waiting for your confirmation")
+	} else {
+		ui.begin("Reviewing installation before the cancel window")
+	}
 	if b.Config.Action == "restore" {
 		log("RESTORE: puts back Android's partition map and clears iOS data headers.")
 		log("ALL iOS DATA WILL BE LOST. BOOT and TWRP stay as they are.")
-		if e = confirmKeys("Erase iOS and prepare the phone for an Android ROM?", log); e != nil {
+		if e = confirmKeys("Erase iOS and prepare the phone for an Android ROM?", log, false); e != nil {
 			return e
 		}
 		ui.begin("Freeing the storage")
@@ -138,16 +165,11 @@ func run() error {
 	if e != nil {
 		return e
 	}
-	mode := b.Config.Mode
-	if mode == "choose" {
-		if valid {
-			mode = "update"
-		} else if recognizable {
-			return errors.New("the iOS data here is damaged or a different size than this package (IOS_DATA_GB); refusing to erase it automatically: back it up, then use a fresh-install package")
-		} else {
-			mode = "fresh"
-		}
+	mode, e := selectInstallMode(b.Config.Mode, valid, recognizable)
+	if e != nil {
+		return e
 	}
+	log(fmt.Sprintf("Install mode: package=%s selected=%s", b.Config.Mode, mode))
 	if mode == "update" {
 		if e = d.CheckData(); e != nil {
 			return e
@@ -157,13 +179,12 @@ func run() error {
 		log("FRESH INSTALL: ALL ANDROID/iOS USERDATA WILL BE LOST. This is not a secure erase.")
 	}
 	log("Use verified OFF-DEVICE backups and tested Download Mode rescue. TWRP will be overwritten.")
-	if e = confirmKeys("Confirm backups/rescue and installation of this experimental candidate.", log); e != nil {
-		return e
-	}
+	prompt := "Install this experimental candidate; existing iOS userdata will be preserved."
 	if mode == "fresh" {
-		if e = confirmKeys("SECOND CONFIRMATION: erase userdata and initialize HFSX?", log); e != nil {
-			return e
-		}
+		prompt = "FRESH INSTALL: erase ALL Android/iOS userdata and initialize HFSX. Ensure off-device backups are complete."
+	}
+	if e = confirmKeys(prompt, log, true); e != nil {
+		return e
 	}
 	ui.begin("Freeing the storage")
 	if e = d.release(log); e != nil {

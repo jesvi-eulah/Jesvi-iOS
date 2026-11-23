@@ -114,7 +114,7 @@ def main():
     p = sub.add_parser('twrp')
     p.add_argument('--bundle', required=True, type=Path)
     p.add_argument('--output', required=True, type=Path)
-    p.add_argument('--mode', choices=['choose', 'update', 'fresh'], default='choose')
+    p.add_argument('--mode', choices=['choose', 'update', 'fresh'], default='fresh')
     p.add_argument('--experimental', action='store_true', help='enable unqualified device writes after physical confirmation')
     p = sub.add_parser('release', help='build everything release.conf asks for')
     p.add_argument('--config', type=Path)
