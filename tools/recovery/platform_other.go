@@ -10,7 +10,7 @@ import (
 
 type linuxDevice struct{}
 
-func openRecovery(Config, *os.File) (*linuxDevice, error) {
+func openRecovery(Config, *os.File, func(string)) (*linuxDevice, error) {
 	return nil, errors.New("device installation requires Linux arm64 TWRP")
 }
 func (*linuxDevice) OpenWritable(string) (Target, error) {

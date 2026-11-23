@@ -29,10 +29,17 @@ The whole root is 7.9 GB and the kernel on the phone has about 4 GB of RAM for e
   - the empty LANGUAGE.lproj directories of the bundles whose strings are in one .loctable file
     for all languages: they are how CoreFoundation knows which languages a bundle has, and
     without them every string comes out as its key.
+
+Y2S_FULL_ROOT=1 keeps everything outside /private/var (staged system apps are still moved to
+/Applications), including all languages, models, media, sound and framework resources. It is
+opt-in for y2s's separate sysimage-y2s tree; the default output stays exactly the same.
 """
+import os
 import re
 import stat
 import sys
+
+FULL_ROOT = os.environ.get('Y2S_FULL_ROOT') == '1'
 
 WHOLE = ('usr/libexec/', 'usr/sbin/', 'usr/bin/', 'usr/lib/', 'usr/share/', 'sbin/', 'bin/', 'private/etc/',
          'System/Library/', 'Applications/', 'Library/')
@@ -145,6 +152,8 @@ def mode_bits(text):
 
 
 def wanted_file(path, size):
+    if FULL_ROOT:
+        return True
     # CallKit's executable must be prepared before the input snapshot is locked.
     if path == 'System/Library/PrivateFrameworks/TelephonyUtilities.framework/callservicesd':
         return True
@@ -218,13 +227,15 @@ def main():
             keep = wanted_file(path, size)
         elif stat.S_ISLNK(mode):
             # a symlink costs nothing: keep every one that lives where we take anything at all
-            keep = '/' not in path or path.startswith(WHOLE) and not path.startswith(SKIP_PREFIX)
+            keep = FULL_ROOT or '/' not in path or \
+                path.startswith(WHOLE) and not path.startswith(SKIP_PREFIX)
         else:
             # (the sound plug-ins' too: Library/Audio is skipped but for AUDIO, and without its en.lproj the
             # virtual audio device's port names came out NULL -- mediaserverd died naming the microphone)
             lproj = re.search(r'/([^/]+)\.lproj$', path)
-            keep = '/' not in path or path in ('private/var', 'private/tmp', 'private/etc', 'private/preboot',
-                                               'private/xarts', 'private') or \
+            keep = FULL_ROOT or '/' not in path or \
+                path in ('private/var', 'private/tmp', 'private/etc', 'private/preboot',
+                         'private/xarts', 'private') or \
                 bool(lproj) and lproj.group(1) in KEEP_LANG and \
                 (path.startswith(WHOLE) and not path.startswith(SKIP_PREFIX) or
                  path.startswith(AUDIO) and not path.startswith(SKIP_AUDIO))
@@ -247,7 +258,8 @@ def main():
                 files.write(source.get(path, path) + '\n')
                 total += size
                 count += 1
-    print(f'select-system: {count} files, {total / 1048576:.0f} MB; {len(chosen)} entries in the manifest')
+    mode = ' (Y2S_FULL_ROOT)' if FULL_ROOT else ''
+    print(f'select-system: {count} files, {total / 1048576:.0f} MB; {len(chosen)} entries in the manifest{mode}')
 
 
 if __name__ == '__main__':

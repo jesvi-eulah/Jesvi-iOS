@@ -22,6 +22,19 @@ class TargetTests(unittest.TestCase):
         self.assertEqual(sorted(line.split()), sorted((ROOT / 'devices/exynos990/x1slte/x1slte.cmdline').read_text().split()))
         self.assertLessEqual(len(line), targets.BOOTLINE_MAX)
 
+    def test_y2s_boot_line_matches_its_target(self):
+        line = targets.bootline(targets.load('y2s'))
+        self.assertEqual(sorted(line.split()),
+                         sorted((ROOT / 'devices/exynos990/y2s/y2s.cmdline').read_text().split()))
+        words = line.split()
+        self.assertIn('cam_s20_y2s=1', words)
+        self.assertIn('island=1', words)
+        for word in ('touch_ts=1', 'haptic=5', 'shub=6', 'torch=3', 'wifi_pcie=4',
+                     'wifi_nvram=1', 'wifi_pcie_wait=3'):
+            self.assertIn(word, words)
+        self.assertNotIn('softpasscode=1', words)
+        self.assertLessEqual(len(line), targets.BOOTLINE_MAX)
+
     def test_ios_data_size_window(self):
         import os
         u = 116253523968

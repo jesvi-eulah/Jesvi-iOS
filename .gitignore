@@ -58,11 +58,13 @@ __pycache__/
 !/userland/src/
 !/userland/libmini/
 !/userland/var/
+!/userland/var-y2s/
 !/userland/defaults/
 
 /sysimage/*
 !/sysimage/fetch.sh
 !/sysimage/*.py
+/sysimage-y2s/
 
 # of xnu-deps only what is ours; setup.sh fetches and builds the rest
 /xnu-deps/*
@@ -112,6 +114,7 @@ __pycache__/
 !/userland/mkeagl.py
 !/userland/libmini/
 !/x1slte.sh
+!/y2s.sh
 /common/devices/*.local.conf
 
 # secrets and fetched prefixes (2026-11-06): never in the repository

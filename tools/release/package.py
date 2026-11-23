@@ -19,12 +19,14 @@ from manage import ROOT, profile
 
 def package(device, dest):
     d = profile(device)
-    if device != 'x1slte':
+    if device not in ('x1slte', 'y2s'):
         raise ValueError('no packaging adapter for this unqualified board')
     dest = dest.absolute()
     if dest.exists():
         raise ValueError('destination already exists; use a new candidate directory')
-    rec = ROOT / 'out/x1slte-recovery.img'
+    # x1slte keeps its long-standing paths. y2s has its own stock-geometry
+    # recovery image and a debloated sysimage tree; never share the x1slte input.
+    rec = ROOT / ('out/y2s/y2s-recovery.img' if device == 'y2s' else 'out/x1slte-recovery.img')
     system = ROOT / 'userland/system.apfs'
     recovery(rec, d)
     apfs(system, d['layout']['system_max_bytes'])

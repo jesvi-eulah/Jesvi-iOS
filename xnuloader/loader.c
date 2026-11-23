@@ -55,6 +55,8 @@ struct payload_entry { char name[16]; uint32_t size; uint32_t reserved; };
  * nothing at runtime writes recovery any more. -DLOG_IN_RECOVERY=1 brings back y2s's place.
  */
 #ifndef SUPER_TAIL_START
+/* Default is the qualified x1slte layout. y2s must override this from stock
+ * G986B super metadata: -DSUPER_TAIL_START=0x217000000 (see tools/y2s/). */
 #define SUPER_TAIL_START 0x1E8B04000ULL
 #endif
 #if LOG_IN_RECOVERY
@@ -629,6 +631,92 @@ dt_end(struct dt_writer *w)
 {
 	w->depth--;
 }
+
+#ifdef Y2S_LOG_FLASH
+/* Read a u32 back out of the flat tree we just wrote, for a boot-time check. */
+static uint32_t
+dt_u32(const uint8_t *p)
+{
+	return *(const uint32_t *)p;
+}
+
+static const uint8_t *
+dt_skip_props(const uint8_t *node)
+{
+	const uint8_t *p = node + 8;
+	uint32_t n = dt_u32(node), i;
+
+	for (i = 0; i < n; i++) {
+		uint32_t len = dt_u32(p + 32);
+
+		p += 36 + ((len + 3) & ~3u);
+	}
+	return p;
+}
+
+static const uint8_t *
+dt_next_node(const uint8_t *node)
+{
+	const uint8_t *p = dt_skip_props(node);
+	uint32_t n = dt_u32(node + 4), i;
+
+	for (i = 0; i < n; i++) {
+		p = dt_next_node(p);
+	}
+	return p;
+}
+
+static const uint8_t *
+dt_find_child(const uint8_t *node, const char *name)
+{
+	const uint8_t *p = dt_skip_props(node);
+	uint32_t n = dt_u32(node + 4), i;
+
+	for (i = 0; i < n; i++) {
+		const uint8_t *q = p + 8, *found = NULL;
+		uint32_t props = dt_u32(p), j;
+
+		for (j = 0; j < props; j++) {
+			uint32_t len = dt_u32(q + 32);
+
+			if (len != 0 && str_eq((const char *)q, "name") && str_eq((const char *)(q + 36), name)) {
+				found = p;
+				break;
+			}
+			q += 36 + ((len + 3) & ~3u);
+		}
+		if (found != NULL) {
+			return found;
+		}
+		p = dt_next_node(p);
+	}
+	return NULL;
+}
+
+static uint32_t
+dt_find_u32(const uint8_t *node, const char *child, const char *prop, int *found)
+{
+	const uint8_t *n = child != NULL ? dt_find_child(node, child) : node, *p;
+	uint32_t count, i;
+
+	*found = 0;
+	if (n == NULL) {
+		return 0;
+	}
+	p = n + 8;
+	count = dt_u32(n);
+	for (i = 0; i < count; i++) {
+		uint32_t len = dt_u32(p + 32);
+
+		if (len == 4 && str_eq((const char *)p, prop)) {
+			*found = 1;
+			return dt_u32(p + 36);
+		}
+		p += 36 + ((len + 3) & ~3u);
+	}
+	return 0;
+}
+#endif /* Y2S_LOG_FLASH */
 
 /* ------------------------------------------------------------------------ */
 /* Platform description                                                     */
@@ -4049,6 +4137,16 @@ run_kernel(int have_checkpoint, uint64_t checkpoint)
 	ba->deviceTreeLength = dt_len;
 	print("device tree %x len %x, boot_args %x, top %x\n", dt_pa, (uint64_t)dt_len, ba_pa, top);
 	print("cmdline: %s\n", ba->commandLine);
+#ifdef Y2S_LOG_FLASH
+	/* A y2s bring-up check: make the island identity visible in the saved log, so a
+	 * missing SystemAperture is not blamed on MobileGestalt when the tree never got it. */
+	int product_subtype_found = 0, home_type_found = 0;
+	uint32_t product_subtype = dt_find_u32(w.base, "product", "artwork-device-subtype", &product_subtype_found);
+	uint32_t home_type = dt_find_u32(w.base, "buttons", "home-button-type", &home_type_found);
+
+	print("island: boot arg %d; /product artwork-device-subtype %u (found %d), /buttons home-button-type %u (found %d)\n",
+	    island, product_subtype, product_subtype_found, home_type, home_type_found);
+#endif
 	if (kernel_mpidr != this_mpidr) {
 		print("the kernel will run on core %x (this is core %x)\n", kernel_mpidr, this_mpidr);
 	}
@@ -4347,6 +4445,13 @@ static uint8_t *stage_buf;
 static uint64_t stage_size, stage_len;
 static int stage_last_log(void);
 static const char *stage_write(const char *part, uint64_t off);
+#ifdef Y2S_LOG_FLASH
+static const char *stage_hfskit(void);
+static const char *hfskit_info(char *msg);
+static const char *hfskit_next(uint64_t max_blocks, uint64_t *wrote);
+static void hfskit_cancel(void);
+static void append_hex(char *p, uint64_t v);
+#endif
 static int usb_boot_asked;
 static void reboot_download(void);
 
@@ -4438,7 +4543,7 @@ fb_command(char *cmd)
 			if (str_eq(var, "product")) {
 				fb_reply("OKAY", "xnuloader");
 			} else if (str_eq(var, "version")) {
-				fb_reply("OKAY", "0.5");
+				fb_reply("OKAY", "0.6");   /* 0.6: chunked hfs* commands; 0.5: one-shot hfskit only */
 			} else if (str_eq(var, "max-download-size")) {
 				fb_reply("OKAY", download_to_ramdisk ? "0xffffffff" : stage_buf != NULL ? "0x05f00000" : "0x03f00000");
 			} else if (str_eq(var, "result")) {
@@ -4614,6 +4719,48 @@ fb_command(char *cmd)
 		} else if (starts_with(cmd, "oem lastlog")) {
 			/* the last run's log as it was saved in the partition; then "upload" (fastboot get_staged) */
 			fb_reply(stage_last_log() ? "OKAY" : "FAIL", "");
+#ifdef Y2S_LOG_FLASH
+		} else if (starts_with(cmd, "oem hfscancel")) {
+			hfskit_cancel();
+			fb_reply("OKAY", "");
+		} else if (starts_with(cmd, "oem hfsinfo")) {
+			/* validate the staged kit and report the work left, without writing */
+			char msg[64];
+			const char *why = hfskit_info(msg);
+
+			if (why != NULL) {
+				fb_reply("FAIL", why);
+			} else {
+				/* fastboot prints OEM text only from INFO packets; OKAYtext is dropped */
+				fb_reply("INFO", msg);
+				fb_reply("OKAY", "");
+			}
+		} else if (starts_with(cmd, "oem hfsnext ")) {
+			/* write up to HEXMAX more blocks, read them back, then reply to the host */
+			uint64_t max = parse_number(cmd + 12, 16), wrote;
+			const char *why = hfskit_next(max, &wrote);
+
+			if (why != NULL) {
+				fb_reply("FAIL", why);
+			} else {
+				char msg[32];
+
+				memcpy(msg, "wrote ", 6);
+				append_hex(msg + 6, wrote);
+				fb_reply("INFO", msg);
+				fb_reply("OKAY", "");
+			}
+		} else if (starts_with(cmd, "oem hfskit")) {
+			/* "oem hfskit": the old one-shot form, kept for loaders without chunked progress */
+			const char *why = stage_hfskit();
+
+			if (why == NULL) {
+				fb_reply("INFO", "HFSX written and read back");
+				fb_reply("OKAY", "");
+			} else {
+				fb_reply("FAIL", why);
+			}
+#endif
 		} else if (starts_with(cmd, "oem write ")) {
 			/* "oem write PART HEXOFFSET": the last download into the partition, read back */
 			char part[24];
@@ -5278,7 +5425,7 @@ ufn_start(void)
 	return 1;
 }
 
-/* the last run's log, as it was saved: recovery + 16 MB, NULs and all (the host drops them) */
+/* the last run's log as saved at LOG_PARTITION_ASCII+LOG_OFFSET (super's tail on y2s), NULs and all */
 static int
 stage_last_log(void)
 {
@@ -5303,6 +5450,8 @@ stage_last_log(void)
  * inside its vendor partition. Set with -DSUPER_TAIL_START=... (xnuloader/build.sh, from the device's .conf).
  */
 #ifndef SUPER_TAIL_START
+/* Default is the qualified x1slte layout. y2s must override this from stock
+ * G986B super metadata: -DSUPER_TAIL_START=0x217000000 (see tools/y2s/). */
 #define SUPER_TAIL_START 0x1E8B04000ULL
 #endif
 /*
@@ -5354,6 +5503,39 @@ stage_write(const char *part, uint64_t off)
 		return "past the end of the partition";
 	}
 	print("write: %d bytes to %s+%x\n", len, part, off);
+#ifdef Y2S_LOG_FLASH
+	/* y2s Log access: UFS write_blocks() needs a DMA-capable buffer, but the
+	 * 96 MiB fastboot stage is ordinary memory. Copy each chunk through the
+	 * 1 MiB scratch buffer, then read the same chunk back into it. This is the
+	 * path that works on SM-G986B; the old direct-from-stage write did not. */
+	while (done < len) {
+		uint64_t chunk = len - done > sizeof(ufs_buffer) ? sizeof(ufs_buffer) : len - done;
+
+		chunk = chunk / bs * bs;
+		if (chunk == 0) {
+			return "the write failed: no whole block to write";
+		}
+		memcpy(ufs_buffer, src + done, (size_t)chunk);
+		if (EFI_ERROR(bio->write_blocks(bio, bio->media->media_id, (off + done) / bs, chunk, ufs_buffer))) {
+			return "the write failed";
+		}
+		done += chunk;
+		wdt_pet();
+	}
+	bio->flush_blocks(bio);
+	for (done = 0; done < len;) {
+		uint64_t chunk = len - done > sizeof(ufs_buffer) ? sizeof(ufs_buffer) : len - done;
+
+		chunk = chunk / bs * bs;
+		if (chunk == 0 ||
+		    EFI_ERROR(bio->read_blocks(bio, bio->media->media_id, (off + done) / bs, chunk, ufs_buffer)) ||
+		    memcmp(ufs_buffer, src + done, (size_t)chunk) != 0) {
+			return "READ BACK DIFFERENT";
+		}
+		done += chunk;
+		wdt_pet();
+	}
+#else
 	while (done < len) {
 		uint64_t chunk = len - done > (4ULL << 20) ? (4ULL << 20) : len - done;
 
@@ -5373,12 +5555,319 @@ stage_write(const char *part, uint64_t off)
 		}
 		done += chunk;
 	}
+#endif /* Y2S_LOG_FLASH */
 	return NULL;
 }
 
+#ifdef Y2S_LOG_FLASH
+/*
+ * crc32 of the HFSKIT01 body. Bit by bit: this is a few tens of KB, and bringing a
+ * table into the loader for it is not worth the space.
+ */
+static uint32_t
+hfskit_crc32(const uint8_t *p, uint64_t len)
+{
+	uint32_t crc = ~0u;
+
+	for (uint64_t i = 0; i < len; i++) {
+		crc ^= p[i];
+		for (int bit = 0; bit < 8; bit++) {
+			crc = (crc >> 1) ^ (0xedb88320u & (uint32_t)(-(int32_t)(crc & 1)));
+		}
+	}
+	return ~crc;
+}
+
+static uint32_t
+hfskit_u32(const uint8_t *p)
+{
+	uint32_t n;
+
+	memcpy(&n, p, sizeof(n));       /* the loader is little-endian, as is the kit */
+	return n;
+}
+
+static uint64_t
+hfskit_u64(const uint8_t *p)
+{
+	uint64_t n;
+
+	memcpy(&n, p, sizeof(n));
+	return n;
+}
+
+/*
+ * Write an HFSX format kit (tools/hfs-kit.py) into userdata. The kit says which
+ * blocks of a freshly formatted volume are data and which are zero; sending only
+ * those runs, instead of a 110 GB image, is what makes a first boot possible over
+ * USB. Every run is written through the firmware and read back.
+ *
+ * The kit stays staged in stage_buf. "oem hfsinfo" validates it and reports the
+ * total block count; "oem hfsnext MAX" writes up to MAX more blocks and replies,
+ * so the host can print a real progress meter instead of waiting for a
+ * multi-minute single command. "oem hfskit" remains the one-shot form. The new
+ * names deliberately do not start with "oem hfskit": a 0.5 loader would treat
+ * "oem hfskit-info"/"oem hfskit-next" as one-shot writes instead of refusing
+ * them. The host checks getvar version == 0.6 before using them.
+ */
+struct hfskit_state {
+	int active;
+	uint32_t n;
+	uint64_t kb;
+	const uint8_t *entries;
+	const uint8_t *data;
+	efi_block_io *bio;
+	uint8_t *zeros;
+	uint32_t run;
+	uint64_t block;                 /* blocks already written in the current run */
+	uint64_t total;
+	uint64_t written;
+};
+static struct hfskit_state hfskit;
+
+static uint64_t
+hfskit_run_first(uint32_t i)
+{
+	return hfskit_u64(hfskit.entries + (uint64_t)i * 16);
+}
+
+static uint32_t
+hfskit_run_blocks(uint32_t i)
+{
+	return hfskit_u32(hfskit.entries + (uint64_t)i * 16 + 8);
+}
+
+static uint32_t
+hfskit_run_kind(uint32_t i)
+{
+	return hfskit_u32(hfskit.entries + (uint64_t)i * 16 + 12);
+}
+
+/* Where this run's literal bytes start in the staged kit (zero runs use none). */
+static uint64_t
+hfskit_run_data_at(uint32_t i)
+{
+	uint64_t at = 0;
+
+	for (uint32_t j = 0; j < i; j++) {
+		if (hfskit_run_kind(j) == 1) {
+			at += (uint64_t)hfskit_run_blocks(j) * hfskit.kb;
+		}
+	}
+	return at;
+}
+
+/* Put an unsigned value into a fastboot text reply (print() has no %llu). */
+static void
+append_hex(char *p, uint64_t v)
+{
+	static const char digits[] = "0123456789abcdef";
+	char rev[16];
+	int n = 0;
+
+	if (v == 0) {
+		rev[n++] = '0';
+	}
+	while (v) {
+		rev[n++] = digits[v & 15];
+		v >>= 4;
+	}
+	while (n) {
+		*p++ = rev[--n];
+	}
+	*p = 0;
+}
+
+static const char *hfskit_prepare(void);
+
+static void
+hfskit_cancel(void)
+{
+	hfskit.active = 0;
+}
+
+static const char *
+hfskit_info(char *msg)
+{
+	const char *why = hfskit_prepare();
+	char *p = msg;
+
+	if (why != NULL) {
+		return why;
+	}
+	memcpy(p, "runs ", 5);
+	p += 5;
+	append_hex(p, hfskit.n);
+	p += str_len(p);
+	memcpy(p, " blocks ", 8);
+	p += 8;
+	append_hex(p, hfskit.total);
+	return NULL;
+}
+
+static const char *
+hfskit_prepare(void)
+{
+	uint64_t kb, total = 0, data_len = 0;
+	uint32_t n, i;
+	efi_block_io *bio;
+	uint8_t *zeros;
+
+	hfskit.active = 0;
+	if (stage_buf == NULL || stage_len < 32) {
+		return "HFSKIT: download the kit first";
+	}
+	if (memcmp(stage_buf, "HFSKIT01", 8) != 0) {
+		return "HFSKIT: not a format kit";
+	}
+	kb = hfskit_u32(stage_buf + 8);
+	n = hfskit_u32(stage_buf + 12);
+	if (kb != 4096 || n == 0 || n > (stage_len - 32) / 16) {
+		return "HFSKIT: bad block size or run count";
+	}
+	if (hfskit_u64(stage_buf + 16) != USERDATA_WIN_LEN || USERDATA_WIN_OFF != 0) {
+		return "HFSKIT: the kit is not for this phone's userdata";
+	}
+	if (hfskit_u32(stage_buf + 24) != hfskit_crc32(stage_buf + 32, stage_len - 32)) {
+		return "HFSKIT: the download is damaged";
+	}
+	if (stage_size < 32 + (uint64_t)n * 16 + (1ULL << 20)) {
+		return "HFSKIT: too little staging memory";
+	}
+	for (i = 0; i < n; i++) {
+		uint64_t first = hfskit_u64(stage_buf + 32 + (uint64_t)i * 16);
+		uint32_t blocks = hfskit_u32(stage_buf + 32 + (uint64_t)i * 16 + 8);
+		uint32_t kind = hfskit_u32(stage_buf + 32 + (uint64_t)i * 16 + 12);
+
+		if (kind > 1 || blocks == 0 || first + (uint64_t)blocks * kb > USERDATA_WIN_LEN) {
+			return "HFSKIT: a run is outside userdata";
+		}
+		total += blocks;
+		if (kind == 1) {
+			data_len += (uint64_t)blocks * kb;
+		}
+	}
+	if (data_len != stage_len - 32 - (uint64_t)n * 16) {
+		return "HFSKIT: extra data in the kit";
+	}
+	bio = find_partition_ascii("userdata");
+	if (bio == NULL || bio->media == NULL) {
+		return "HFSKIT: no userdata partition";
+	}
+	if (bio->media->block_size != kb) {
+		return "HFSKIT: the partition's block size is different";
+	}
+	zeros = stage_buf + stage_size - (1ULL << 20);
+	memset(zeros, 0, 1ULL << 20);
+
+	hfskit.active = 1;
+	hfskit.n = n;
+	hfskit.kb = kb;
+	hfskit.entries = stage_buf + 32;
+	hfskit.data = hfskit.entries + (uint64_t)n * 16;
+	hfskit.bio = bio;
+	hfskit.zeros = zeros;
+	hfskit.run = 0;
+	hfskit.block = 0;
+	hfskit.total = total;
+	hfskit.written = 0;
+	return NULL;
+}
+
+static const char *
+hfskit_write_runs(efi_block_io *bio, uint64_t first, uint64_t blocks, const uint8_t *src)
+{
+	uint64_t bs = bio->media->block_size, done = 0;
+	uint64_t per = (1ULL << 20) / bs;        /* ufs_buffer's size, in blocks */
+
+	if (per == 0) {
+		return "HFSKIT: a block is too large";
+	}
+	while (done < blocks) {
+		uint64_t n = blocks - done < per ? blocks - done : per;
+
+		/* write_blocks()/read_blocks() take a byte count, and the firmware
+		 * needs a DMA-capable source. ufs_buffer covers exactly one chunk. */
+		memcpy(ufs_buffer, src + done * bs, (size_t)(n * bs));
+		if (EFI_ERROR(bio->write_blocks(bio, bio->media->media_id, (first + done), n * bs, ufs_buffer)) ||
+		    EFI_ERROR(bio->read_blocks(bio, bio->media->media_id, (first + done), n * bs, ufs_buffer)) ||
+		    memcmp(ufs_buffer, src + done * bs, (size_t)(n * bs)) != 0) {
+			return "HFSKIT: a write did not read back";
+		}
+		done += n;
+		wdt_pet();
+	}
+	return NULL;
+}
+
+static const char *
+hfskit_next(uint64_t max_blocks, uint64_t *wrote)
+{
+	const uint8_t *src;
+	uint64_t first, n;
+	const char *why;
+
+	*wrote = 0;
+	if (!hfskit.active) {
+		return "HFSKIT: no prepared kit";
+	}
+	if (max_blocks == 0) {
+		return "HFSKIT: zero chunk";
+	}
+	while (hfskit.run < hfskit.n && hfskit.block >= hfskit_run_blocks(hfskit.run)) {
+		hfskit.run++;
+		hfskit.block = 0;
+	}
+	if (hfskit.run >= hfskit.n) {
+		return NULL;                    /* already complete */
+	}
+	n = hfskit_run_blocks(hfskit.run) - hfskit.block;
+	if (n > max_blocks) {
+		n = max_blocks;
+	}
+	first = hfskit_run_first(hfskit.run) / hfskit.kb + hfskit.block;
+	src = hfskit_run_kind(hfskit.run) == 1 ?
+	    hfskit.data + hfskit_run_data_at(hfskit.run) + hfskit.block * hfskit.kb :
+	    hfskit.zeros;
+	why = hfskit_write_runs(hfskit.bio, first, n, src);
+	if (why != NULL) {
+		return why;
+	}
+	hfskit.block += n;
+	hfskit.written += n;
+	*wrote = n;
+	if (hfskit.written == hfskit.total) {
+		(void)hfskit.bio->flush_blocks(hfskit.bio);
+		hfskit.active = 0;
+	}
+	return NULL;
+}
+
+static const char *
+stage_hfskit(void)
+{
+	const char *why = hfskit_prepare();
+	uint64_t wrote;
+
+	if (why != NULL) {
+		return why;
+	}
+	print("hfskit: writing %d runs (%d MB of data) to userdata\n",
+	    (uint64_t)hfskit.n, hfskit.total >> 8);
+	while (hfskit.active) {
+		why = hfskit_next(1ULL << 30, &wrote);
+		if (why != NULL) {
+			return why;
+		}
+	}
+	return NULL;
+}
+#endif /* Y2S_LOG_FLASH */
+
 /*
  * "Log access": the fastboot server until Power is pressed or the host says "oem boot". Returns 1 to boot iOS.
- * Host: ./y2s.sh ulog (oem lastlog, get_staged), ./y2s.sh uflash (stage, oem write recovery 0), oem boot.
+ * y2s host: ./y2s.sh ulog / fresh / rflash / tflash / uboot.
+ * x1slte host: ./x1slte.sh ulog / uflash / uboot (the original flow).
  */
 static int
 log_access(void)
@@ -5402,8 +5891,13 @@ log_access(void)
 		return 0;
 	}
 	/* (the last log is read from the flash when the host asks for it: oem lastlog) */
+#ifdef Y2S_LOG_FLASH
+	menu_status("Log access (USB)", "./y2s.sh rflash  boot + recovery",
+	    "./y2s.sh tflash  also system.apfs", "./y2s.sh ulog / fresh / uboot", NULL);
+#else
 	menu_status("Log access (USB)", "Connect the phone to the Mac, then:", "./x1slte.sh ulog    the last log",
 	    "./x1slte.sh uflash  a new build", "./x1slte.sh uboot   boot iOS");
+#endif
 	ufn_leave = 0;
 	usb_boot_asked = 0;
 	while (!ufn_leave && !usb_boot_asked) {

@@ -4,6 +4,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -29,8 +30,26 @@ func mountedDevices(text string) (map[string]bool, error) {
 	}
 	return mounted, nil
 }
+
+var regionalModel = regexp.MustCompile(`^SM-(G980|G986)[A-Z](/DS)?$`)
+var samsungFirmware = regexp.MustCompile(`^[A-Z0-9]{12,16}$`)
+
+func regionalIdentity(c Config, model, firmware string) bool {
+	actual := regionalModel.FindStringSubmatch(model)
+	if actual == nil || !samsungFirmware.MatchString(firmware) || !strings.HasPrefix(firmware, strings.TrimSuffix(strings.TrimPrefix(model, "SM-"), "/DS")) {
+		return false
+	}
+	for _, qualified := range c.Models {
+		m := regionalModel.FindStringSubmatch(qualified)
+		if m != nil && m[1] == actual[1] {
+			return true
+		}
+	}
+	return false
+}
+
 func verifyIdentity(c Config, model, bootloader, product, soc, locked, state string) error {
-	if !hasModel(c.Models, model) || !hasModel(c.Bootloaders, bootloader) {
+	if !(hasModel(c.Models, model) && hasModel(c.Bootloaders, bootloader)) && !regionalIdentity(c, model, bootloader) {
 		return fmt.Errorf("exact model/bootloader mismatch: model=%q bootloader=%q", model, bootloader)
 	}
 	// The product only names the TWRP build. Unified Exynos 990 builds (ExtremeROM/Artisan) report one
@@ -49,7 +68,7 @@ func verifyIdentity(c Config, model, bootloader, product, soc, locked, state str
 
 // Samsung recovery templates can report a generic product model. Prefer the
 // bootloader-supplied hardware model used by ExtremeROM's device assertions.
-func verifyRecoveryIdentity(c Config, get func(string) string) error {
+func verifyRecoveryIdentity(c Config, get func(string) string, warnings ...func(string)) error {
 	model := get("ro.boot.em.model")
 	if model == "" {
 		model = get("ro.product.model")
@@ -70,7 +89,13 @@ func verifyRecoveryIdentity(c Config, get func(string) string) error {
 	if locked == "" && state == "" && get("ro.boot.verifiedbootstate") == "orange" {
 		state = "unlocked"
 	}
-	return verifyIdentity(c, model, bootloader, get("ro.product.device"), soc, locked, state)
+	err := verifyIdentity(c, model, bootloader, get("ro.product.device"), soc, locked, state)
+	if err == nil && (!hasModel(c.Models, model) || !hasModel(c.Bootloaders, bootloader)) {
+		for _, warn := range warnings {
+			warn(fmt.Sprintf("WARNING: %s firmware %s is untested with this image.", model, bootloader))
+		}
+	}
+	return err
 }
 
 // TWRP product names of the Exynos 990 family, accepted only after the exact model/bootloader match.

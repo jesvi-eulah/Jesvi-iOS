@@ -49,11 +49,11 @@ func prop(key string) string {
 	}
 	return ""
 }
-func openRecovery(c Config, archive *os.File) (*linuxDevice, error) {
+func openRecovery(c Config, archive *os.File, log func(string)) (*linuxDevice, error) {
 	if runtime.GOARCH != "arm64" || os.Geteuid() != 0 || prop("ro.twrp.version") == "" {
 		return nil, errors.New("requires arm64 root TWRP")
 	}
-	if e := verifyRecoveryIdentity(c, prop); e != nil {
+	if e := verifyRecoveryIdentity(c, prop, log); e != nil {
 		return nil, e
 	}
 	readInt := func(path string) (int, error) {

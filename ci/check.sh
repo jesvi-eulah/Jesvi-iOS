@@ -16,7 +16,8 @@ cc -std=c99 -Wall -Wextra -Werror tools/release/tests/data_volume_test.c -o "$te
 "$test_dir/data-volume"
 cc -std=c99 -Wall -Wextra -Werror tools/release/tests/clock_test.c -o "$test_dir/clock"
 "$test_dir/clock"
-for file in build.sh ci/*.sh x1slte.sh userland/build.sh userland/build-gpu-y2s.sh xnu-deps/setup.sh; do
+for file in build.sh ci/*.sh x1slte.sh y2s.sh sysimage/fetch.sh tools/y2s/*.sh userland/build.sh userland/build-gpu-y2s.sh xnu-deps/setup.sh; do
     bash -n "$file"
 done
+python3 -m py_compile sysimage/*.py tools/y2s/*.py
 git diff --check

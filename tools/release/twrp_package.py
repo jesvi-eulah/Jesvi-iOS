@@ -29,13 +29,23 @@ def _sources():
     return sources
 
 
+def _partitions(device):
+    """The four iOS destinations, plus up_param (Samsung's power-on pictures) when the profile measured it: the
+    install puts iOS's boot logo there, Jesvi-iOS-Restore puts the phone's own logo back (tools/recovery/splash.go).
+    Other partitions recorded as stock evidence (dtbo, vbmeta, metadata on y2s) are not installer destinations."""
+    parts = {name: device['partitions'][name] for name in ('boot', 'recovery', 'super', 'userdata')}
+    if device.get('splash_partition_bytes'):
+        parts['up_param'] = device['splash_partition_bytes']
+    return parts
+
+
 def device_config(device, action, mode, experimental):
     """Installer config from the measured device profile (bound into the binary)."""
     l = device['layout']
     return {'schema': 2, 'action': action, 'device': device['id'], 'mode': mode,
             'allow_writes': experimental, 'installer_validated': False,
             'models': device['models'], 'bootloaders': device['bootloaders'],
-            'products': device['recovery_products'], 'partitions': device['partitions'],
+            'products': device['recovery_products'], 'partitions': _partitions(device),
             'system_max_bytes': l['system_max_bytes'], 'stash_offset': l['android_stash_offset'],
             'android_super': device['android_super'], 'files': {}, 'kit_sha256': '', 'kit_bytes': 0}
 
@@ -119,6 +129,11 @@ def package(bundle, output, mode='fresh', experimental=False):
     if mode not in ('choose', 'update', 'fresh'):
         raise ValueError('unsupported installer mode')
     manifest, device = verify(bundle)
+    # y2s is a first-install target only: this ZIP always erases and initializes
+    # userdata. Once iOS is running, updates come from the loader's Log access
+    # menu (./y2s.sh rflash / tflash), never from a second TWRP flash.
+    if device['id'] == 'y2s' and mode != 'fresh':
+        raise ValueError('y2s TWRP ZIP is first-install only; pass --mode fresh; use the loader for updates')
     avb, avb_key = ROOT / 'inputs/tools/avbtool.py', ROOT / 'inputs/tools/testkey_rsa4096.pem'
     for tool in (avb, avb_key):
         if tool.is_symlink() or not tool.is_file():
@@ -149,6 +164,9 @@ def package(bundle, output, mode='fresh', experimental=False):
               'TWRP is replaced by the iOS runtime. To update later, flash TWRP with Odin first.\n'
               'Back to Android: flash Jesvi-iOS-Restore, Format Data, then any Android ROM ZIP.\n'
               'This is not an authenticated public release. See docs/release/twrp.md and rollback.md.\n')
+    if device['id'] == 'y2s':
+        readme = readme.replace('To update later, flash TWRP with Odin first.', 'Use the loader for updates.')
+        readme += 'S20+ first installation only. For preserving updates use ./y2s.sh via the loader.\n'
     files = {'candidate.json': bundle / 'manifest.json', 'hfs-kit.bin': kit,
              'boot.img': bundle / 'boot.img', 'recovery.img': bundle / 'recovery.img', 'system.apfs': bundle / 'system.apfs'}
     _build(output, config, files, readme, ENTRIES, {

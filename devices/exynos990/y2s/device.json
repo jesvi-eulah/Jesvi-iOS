@@ -1,15 +1,39 @@
 {
   "schema": 1,
   "id": "y2s",
-  "name": "Galaxy S20+ (Exynos)",
+  "name": "Galaxy S20+ 5G (SM-G986B)",
   "platform": "exynos990",
-  "status": "unmaintained",
+  "status": "development",
   "maintainers": [],
-  "models": [],
-  "recovery_products": [],
-  "bootloaders": [],
+  "models": [
+    "SM-G986B"
+  ],
+  "recovery_products": [
+    "y2s"
+  ],
+  "bootloaders": [
+    "G986BXXSNHYB1"
+  ],
   "installer_validated": false,
-  "partitions": {},
-  "layout": {},
-  "evidence": null
+  "partitions": {
+    "boot": 61865984,
+    "recovery": 69009408,
+    "super": 9437184000,
+    "userdata": 116253523968,
+    "dtbo": 8388608,
+    "vbmeta": 65536,
+    "metadata": 33554432
+  },
+  "layout": {
+    "system_offset": 0,
+    "system_max_bytes": 6243221504,
+    "log_offset": 16777216,
+    "log_bytes": 8388608,
+    "kernel_offset": 33554432,
+    "kernel_max_bytes": 20971520,
+    "root_offset": 54525952,
+    "super_log_offset": 8975810560
+  },
+  "evidence": "docs/release/device-evidence-y2s.md",
+  "splash_partition_bytes": 8388608
 }

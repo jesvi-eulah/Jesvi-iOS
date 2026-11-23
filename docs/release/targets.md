@@ -50,7 +50,7 @@ bootloader. Here the S20 LTE (`x1slte`, measured) and S20 5G (`x1s`, inherits it
 are separate because the modem driver and RAM differ; S20+, Note20 and Note20
 Ultra use `TARGET_MODEM="auto"` until a phone of each is measured.
 
-**Status today:** only `x1slte` builds. The others hold public facts (from
+**Status today:** `x1slte` and `y2s` have development profiles. See the [S20+ build and update guide](../../tools/y2s/README.md). The others hold public facts (from
 ExtremeROM's targets and Samsung specs) and are skipped as `unmaintained`.
 
 ## Bringing up a new phone

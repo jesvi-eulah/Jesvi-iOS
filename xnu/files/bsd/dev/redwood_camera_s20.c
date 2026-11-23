@@ -51,6 +51,7 @@ extern bool redwood_s2mpb02_front_voltages(uint8_t saved[4], bool restore);
 extern bool redwood_s2mpb02_main_voltages(struct cam_main_voltage *,bool,bool *,void *,
     bool(*)(void *,uint8_t,uint8_t *),bool(*)(void *,uint8_t,uint8_t));
 extern int redwood_spmic_read(uint8_t type, uint8_t reg, uint8_t *value);
+extern int redwood_spmic_write(uint8_t type, uint8_t reg, uint8_t value);
 
 #define PINCTRL_PERIC1_GPC0       0x0a0U
 #define PINCTRL_CMGP_GPM1         0x020U

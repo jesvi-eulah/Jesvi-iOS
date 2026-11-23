@@ -88,6 +88,8 @@ def plan(conf):
         if d['status'] == 'unmaintained':
             skipped.append((target, 'no measured device profile yet (docs/release/porting.md)'))
             continue
+        if target == 'y2s' and conf['MODE'] != 'fresh' and set(conf['OUTPUTS']) & {'twrp', 'preflight'}:
+            raise ValueError('y2s TWRP requires MODE=fresh; use the loader for updates')
         n = names(conf, target)
         for out in dict.fromkeys(conf['OUTPUTS']):
             todo.append((target, out, conf['OUT'] / n[out]))
@@ -118,7 +120,9 @@ def build(conf, dry_run=False):
         if out == 'tar':
             write_tar(b, path)
         else:
-            package(b, path, conf['MODE'], conf['WRITES'] and out == 'twrp')
+            # y2s's TWRP ZIP is first-install only; loader flashes carry updates.
+            mode = 'fresh' if target == 'y2s' else conf['MODE']
+            package(b, path, mode, conf['WRITES'] and out == 'twrp')
     print(f'Release files in {conf["OUT"].relative_to(ROOT)}; hardware qualification pending')
     return 0
 
@@ -129,6 +133,9 @@ def bundle_for(conf, target):
         b = b if b.is_absolute() else ROOT / b
         if not (b / 'manifest.json').is_file():
             raise ValueError(f'BUNDLE has no manifest.json: {b}')
+        import json
+        if json.loads((b / 'manifest.json').read_text()).get('device') != target:
+            raise ValueError(f'BUNDLE was not built for {target}')
         return b
     if target != 'x1slte':
         raise ValueError(f'{target}: no image build adapter yet; set BUNDLE to a verified candidate')

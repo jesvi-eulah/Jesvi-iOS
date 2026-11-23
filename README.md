@@ -8,6 +8,15 @@ the same way: a common tree, plus one directory per device.
 > Experimental. It replaces Android on the phone. Read [Install](docs/release/install.md) and
 > [Rollback](docs/release/rollback.md) before you start.
 
+## Device support
+
+| Build | Measured hardware | Installation |
+|---|---|---|
+| x1slte | Galaxy S20 LTE, SM-G980F | TWRP fresh install or explicit update |
+| y2s | Galaxy S20+ 5G, SM-G986B | Development port. Fresh TWRP install only. Use the loader for subsequent updates. [Board evidence](docs/release/device-evidence-y2s.md) · [Build and update guide](tools/y2s/README.md) |
+
+Other G980 and G986 regional variants can try the corresponding build when the model and firmware agree, the SoC is Exynos 990, and the partition sizes match. Recovery warns about untested combinations. The G985 S20+ LTE has no measured board profile here.
+
 ## What works on the S20
 
 | | |
@@ -28,8 +37,8 @@ and every change is logged in [SHIPPING.md](docs/SHIPPING.md).
 Everything is in the **[install guide](docs/release/install.md)**: before you start, then
 
 - **A. From Android** (ExtremeROM, UN1CA, stock...): TWRP 3.7.1+, then the install ZIP from microSD/USB-C or with
-  `tools/install/twrp-install.sh` from a computer; hold Volume Up to confirm.
-- **B. Update** an S20 already on Jesvi iOS (keeps your data): `tools/install/twrp-install.sh <zip>` in TWRP.
+  `tools/install/twrp-install.sh` from a computer; the write-enabled installer proceeds after 45 seconds unless cancelled.
+- **B. Update** an x1slte already on Jesvi iOS (use an explicit update ZIP to keep data): `tools/install/twrp-install.sh <zip>` in TWRP.
   Tested on the phone 2026-11-18.
 - **C. Back to Android:** Odin TWRP, the restore ZIP, *Format Data*, flash any ROM. Nothing is repartitioned.
 - **D. If something goes wrong**, and troubleshooting.
@@ -66,10 +75,12 @@ Guides: [building](docs/release/building.md), [one-command local build](docs/rel
 
 ## More devices
 
-The Exynos 990 layer is shared, so the S20+ (`y2s`), S20 Ultra (`z3s`) and Note20 (`c1s`/`c2s`) can be
+The Exynos 990 layer is shared, so the S20 Ultra (`z3s`) and Note20 (`c1s`/`c2s`) can be
 added as directories next to `x1slte`. See [porting](docs/release/porting.md).
 
 ## Credits and licenses
+
+[Android-Artisan](https://github.com/Android-Artisan) contributed the S20+ 5G port, stock partition measurements, loader updates and build tools in [PR #7](https://github.com/jesvi-eulah/Jesvi-iOS/pull/7).
 
 HakiOS (oosexgang), Apple's open-source XNU (APSL 2.0), Mu-Silicium, Mesa and the other components
 in [NOTICE](NOTICE) and [THIRD_PARTY_LICENSES.md](docs/legal/THIRD_PARTY_LICENSES.md). Nothing of Apple's or

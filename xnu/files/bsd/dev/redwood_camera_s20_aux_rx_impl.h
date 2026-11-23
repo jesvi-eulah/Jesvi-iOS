@@ -9,6 +9,9 @@ struct ax_receiver {
     uint32_t irq,error,link0,link1,frames,changed,guard_bad,pixel_min,pixel_max;
     unsigned failed_region,failed_offset;uint32_t failed_mask,failed_want,failed_actual;
     bool packed,cached,gw2;unsigned width,height;const volatile uint8_t *read_base;
+    uint8_t s2mps_rail5,s2mps_rail6;        /* saved S2MPS22 0x2e/0x2f values */
+    bool s2mps_rail5_changed,s2mps_rail6_changed;
+    bool y2s_quirks,pmu_pd_was_off,pmu_pd_enabled;
     const char *phase;
 };
 static unsigned ax_offset(const struct ax_receiver *x,unsigned r,unsigned off){
@@ -22,6 +25,76 @@ static bool ax_write(void *p,unsigned r,unsigned off,uint32_t v){
     struct ax_receiver *x=p;if(r>=AX_REGIONS||!x->bank[r])return false;ax_wr(x,r,off,v);return true;
 }
 static uint32_t ax_rd(struct ax_receiver *x,unsigned r,unsigned off){return cam_s20_rd(x->bank[r],ax_offset(x,r,off));}
+static bool ax_restore_rails(struct ax_receiver *x){
+    bool ok=true;
+    if(x->s2mps_rail5_changed){
+        uint8_t now=0;
+        if(redwood_spmic_write(1,0x2e,x->s2mps_rail5)!=0||redwood_spmic_read(1,0x2e,&now)!=0||now!=x->s2mps_rail5)ok=false;
+        x->s2mps_rail5_changed=false;
+    }
+    if(x->s2mps_rail6_changed){
+        uint8_t now=0;
+        if(redwood_spmic_write(1,0x2f,x->s2mps_rail6)!=0||redwood_spmic_read(1,0x2f,&now)!=0||now!=x->s2mps_rail6)ok=false;
+        x->s2mps_rail6_changed=false;
+    }
+    return ok;
+}
+/* The x1slte path assumes CSIS' PMU domain and the two S2MPS22 PHY rails are
+ * already on. On y2s they are cold after boot, so `cam_s20_y2s=1` lets this
+ * bounded helper turn them on, then put them back exactly as it found them. */
+static bool ax_prepare_y2s_prereqs(struct ax_receiver *x){
+    int y2s=0;
+    (void)PE_parse_boot_argn("cam_s20_y2s",&y2s,sizeof(y2s));
+    x->y2s_quirks=y2s!=0;
+    if(!x->y2s_quirks)return true;
+    if(!(ax_rd(x,AX_PMU,0x1d84)&1U)){
+        unsigned i;
+        x->phase="CSIS domain power-on";
+        x->pmu_pd_was_off=true;
+        ax_wr(x,AX_PMU,0x1d80,ax_rd(x,AX_PMU,0x1d80)|1U);
+        x->pmu_pd_enabled=true; /* cleanup must undo the write even if the wait times out */
+        for(i=0;i<1000&&!(ax_rd(x,AX_PMU,0x1d84)&1U);i++)delay_for_interval(10,NSEC_PER_USEC);
+        if(!(ax_rd(x,AX_PMU,0x1d84)&1U)){x->phase="CSIS domain power-on timeout";return false;}
+    }
+    x->phase="PHY rail enables";
+    uint8_t rail5=0,rail6=0;
+    if(redwood_spmic_read(1,0x2e,&rail5)!=0||redwood_spmic_read(1,0x2f,&rail6)!=0){
+        x->phase="PHY rail read";return false;
+    }
+    /* Samsung's Exynos990 camera reference: 0xcc = LDO5S 0.85 V,
+     * 0xec = LDO6S 1.8 V. Do not merely OR in the enable bits. */
+    if((rail5&0xc0U)!=0xc0U){
+        x->s2mps_rail5=rail5;x->s2mps_rail5_changed=true;
+        if(redwood_spmic_write(1,0x2e,0xcc)!=0){x->phase="LDO5S enable";return false;}
+    }
+    if((rail6&0xc0U)!=0xc0U){
+        x->s2mps_rail6=rail6;x->s2mps_rail6_changed=true;
+        if(redwood_spmic_write(1,0x2f,0xec)!=0){x->phase="LDO6S enable";return false;}
+    }
+    rail5=0;rail6=0;
+    if(redwood_spmic_read(1,0x2e,&rail5)!=0||redwood_spmic_read(1,0x2f,&rail6)!=0){
+        x->phase="PHY rail enable readback";return false;
+    }
+    if((x->s2mps_rail5_changed&&rail5!=0xcc)||(x->s2mps_rail6_changed&&rail6!=0xec)){
+        x->phase="PHY rail voltage readback";return false;
+    }
+    if((rail5&0xc0U)!=0xc0U||(rail6&0xc0U)!=0xc0U){
+        x->phase="PHY rails off";return false;
+    }
+    return true;
+}
+static void ax_restore_y2s_prereqs(struct ax_receiver *x,bool *clean){
+    if(x->pmu_pd_enabled){
+        /* Undo exactly what ax_prepare_y2s_prereqs() did: save secure state,
+         * drop the CSIS domain, then restore the sub-PMIC rails. */
+        if(cam_s20_smc4(SMC_PREPARE_PD_ONOFF,0,CSIS_NEED_SMC,2)!=0)*clean=false;
+        ax_wr(x,AX_PMU,0x1d80,ax_rd(x,AX_PMU,0x1d80)&~1U);
+        for(unsigned i=0;i<1000&&(ax_rd(x,AX_PMU,0x1d84)&1U);i++)delay_for_interval(10,NSEC_PER_USEC);
+        if(ax_rd(x,AX_PMU,0x1d84)&1U)*clean=false;
+        x->pmu_pd_enabled=false;
+    }
+    if(!ax_restore_rails(x))*clean=false;
+}
 static bool ax_wait_clock(struct ax_receiver *x,unsigned off){
     for(unsigned i=0;i<1000;i++){if(!(ax_rd(x,AX_TOP,off)&(1U<<16)))return true;delay_for_interval(1,NSEC_PER_USEC);}return false;
 }
@@ -36,10 +109,14 @@ static bool ax_receiver_begin_sensor(struct ax_receiver *x,bool packed,unsigned 
     x->phase="receiver map";x->io=(struct ax_io){x,ax_read,ax_write};
     for(unsigned i=0;i<AX_REGIONS;i++){x->bank[i]=(volatile uint8_t *)cam_s20_io_map(gw2&&i==AX_CSI?0x17050000:gw2&&i==AX_PHY?0x170d1b00:gw2&&i==AX_MUX?0x17020420:physical[i],lengths[i]);if(!x->bank[i])return false;}
     x->phase="CSIS domain/PHY rail prerequisites";
-    if(!(ax_rd(x,AX_PMU,0x1d84)&1U))return false;
+    if(!ax_prepare_y2s_prereqs(x))return false;
+    if(!(ax_rd(x,AX_PMU,0x1d84)&1U)){x->phase="CSIS domain off";return false;}
     uint8_t rail5=0,rail6=0;
-    if(redwood_spmic_read(1,0x2e,&rail5)||redwood_spmic_read(1,0x2f,&rail6)||!(rail5&0xc0)||!(rail6&0xc0))return false;
-    if(cam_s20_smc4(SMC_PREPARE_PD_ONOFF,1,CSIS_NEED_SMC,2))return false;
+    if(redwood_spmic_read(1,0x2e,&rail5)!=0||redwood_spmic_read(1,0x2f,&rail6)!=0){
+        x->phase="PHY rail read";return false;
+    }
+    if((rail5&0xc0U)!=0xc0U||(rail6&0xc0U)!=0xc0U){x->phase="PHY rails off";return false;}
+    if(cam_s20_smc4(SMC_PREPARE_PD_ONOFF,1,CSIS_NEED_SMC,2)!=0){x->phase="CSIS DTZPC restore";return false;}
 #define AXW(r,o,m,v) do{if(!ax_jwrite(&x->journal,x->io,r,o,m,v)){x->failed_region=r;x->failed_offset=ax_offset(x,r,o);x->failed_mask=m;x->failed_want=v;x->failed_actual=ax_rd(x,r,o);return false;}}while(0)
     x->phase="CSIS clocks";
     static const unsigned qch[4]={0x3058,0x3078,0x307c,0x3070};
@@ -149,7 +226,7 @@ static bool ax_receiver_end(struct ax_receiver *x){
             if((ax_rd(x,AX_DMA,0x1408)&(1U<<16))&&!(ax_rd(x,AX_DMA,0x1090)&1U)){stopped=true;break;}
             cam_s20_wait_ms(1);
         }
-        if(!stopped){x->retained=true;x->phase="DMA abort unacknowledged; memory retained";return false;}
+        if(!stopped){x->retained=true;x->phase="DMA abort unacknowledged; memory retained";ax_restore_y2s_prereqs(x,&clean);return false;}
     }
     __asm__ volatile("dsb sy":::"memory");
     if(x->ready&&x->allocated){
@@ -176,6 +253,7 @@ static bool ax_receiver_end(struct ax_receiver *x){
         ax_clear_frame_sources(x);
     }
     if(x->phy_touched)cam_s20_wr(x->bank[AX_SYS],0,ax_rd(x,AX_SYS,0)&~(1U<<(x->gw2?1:2)));
+    ax_restore_y2s_prereqs(x,&clean);
     if(!ax_jrestore(&x->journal,x->io))clean=false;
     if(x->bank[AX_TOP]&&(!ax_wait_clock(x,0x104c)||!ax_wait_clock(x,0x1848)))clean=false;
     if(x->allocated){redwood_camera_dma_put();x->allocated=false;}

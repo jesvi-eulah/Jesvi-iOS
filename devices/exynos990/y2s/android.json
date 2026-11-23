@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "source": "slot 0 of the SM-G986B / G986BXXSNHYB1 stock super.img LP metadata, unpacked 2026-11-22; cross-checked with the phone's lpdump before iOS",
+  "android_stash_offset": 9435086848,
+  "android_super": {
+    "metadata_max_size": 65536,
+    "metadata_slots": 2,
+    "logical_block_size": 4096,
+    "alignment": 1048576,
+    "first_logical_sector": 2048,
+    "groups": [{"name": "group_basic", "max_size": 9432989696}]
+  }
+}

@@ -60,6 +60,9 @@ var imageParts = map[string]string{"boot.img": "boot", "recovery.img": "recovery
 var capacities = map[string]int64{"boot": 61865984, "recovery": 69009408, "super": 9437184000, "userdata": 116253523968}
 var systemMax int64 = 4 << 30
 
+// y2s uses the measured stock system window; x1slte keeps its 4 GiB cap.
+const y2sSystemMax int64 = 0x174200000
+
 var deviceName = regexp.MustCompile(`^[a-z0-9]{2,16}$`)
 
 // checkConfig accepts only the fixed four destinations, sizes from the bound
@@ -72,6 +75,12 @@ func checkConfig(c Config) error {
 	case "install":
 		if c.Mode != "choose" && c.Mode != "fresh" && c.Mode != "update" {
 			return errors.New("unsupported install mode")
+		}
+		// y2s's TWRP ZIP is first-install only. Updates are flashed from the
+		// loader's Log access menu; accepting a y2s "update" here would let a
+		// stale TWRP ZIP overwrite a booted iOS installation.
+		if c.Device == "y2s" && c.Mode != "fresh" {
+			return errors.New("y2s supports first install only; use the loader for updates")
 		}
 		if len(c.Files) != 3 || c.KitBytes <= 0 {
 			return errors.New("install package needs system, recovery, boot and HFS kit")
@@ -106,7 +115,11 @@ func checkConfig(c Config) error {
 	if c.DataBytes != 0 && (c.DataBytes%4096 != 0 || c.DataBytes < 16e9 || c.DataBytes > c.Partitions["userdata"]) {
 		return errors.New("iOS data size must be 4096-aligned, at least 16 GB and inside userdata")
 	}
-	if c.SystemMaxBytes < 64<<20 || c.SystemMaxBytes > 4<<30 || c.SystemMaxBytes > sup {
+	maxSystem := int64(4 << 30)
+	if c.Device == "y2s" {
+		maxSystem = y2sSystemMax
+	}
+	if c.SystemMaxBytes < 64<<20 || c.SystemMaxBytes > maxSystem || c.SystemMaxBytes > sup {
 		return errors.New("invalid system window")
 	}
 	if c.StashOffset < c.SystemMaxBytes || c.StashOffset%4096 != 0 || c.StashOffset+4096+lpRegion > sup {

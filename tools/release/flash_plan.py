@@ -21,8 +21,10 @@ def verify(bundle):
     if m.get('layout') != 'ios-only-v1':
         raise ValueError('unknown storage layout')
     d = profile(m['device'])
-    if d['id'] != 'x1slte':
-        raise ValueError('only x1slte has an image validator')
+    # Only boards with a measured layout and a complete image validator may be
+    # packaged. y2s's validator uses the same checks against stock geometry.
+    if d['id'] not in ('x1slte', 'y2s'):
+        raise ValueError('no image validator for this board')
     if digest(ROOT / f'devices/exynos990/{d["id"]}/device.json') != m['device_profile_sha256']:
         raise ValueError('device profile does not match this candidate')
     expected = {'boot.img': 'boot', 'recovery.img': 'recovery', 'system.apfs': 'super'}

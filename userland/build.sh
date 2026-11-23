@@ -668,7 +668,10 @@ if [ -d $IOS/rootfs/usr/lib ]; then
 	# ... and the files of ours it puts there (var/): those under mobile/ belong to the user mobile
 	printf 'd\t755\t0\t0\t/private/var/preferences/SystemConfiguration\n' >> root/etc/var.skel
 	cp -r var root/var
-	(cd var && find . -type f | sed 's|^\./||' | sort) | while read -r f; do
+	# A board may override only the files it needs (y2s: the full IconState) without
+	# touching the shared skeleton. The default path stays x1slte's exactly as before.
+	[ -z "${VAR_OVERLAY:-}" ] || cp -R "${VAR_OVERLAY}/." root/var/
+	(cd root/var && find . -type f | sed 's|^\./||' | sort) | while read -r f; do
 		case $f in mobile/*) owner=501 ;; *) owner=0 ;; esac
 		printf 'f\t644\t%s\t%s\t/private/var/%s\t/var/%s\n' $owner $owner "$f" "$f"
 	done >> root/etc/var.skel
@@ -713,7 +716,16 @@ if [ -d $IOS/rootfs/usr/lib ]; then
 	# fairplayd among them).
 	cp com.redwood.demo.plist com.redwood.wifi.plist com.redwood.thermald.plist com.redwood.lpmd.plist com.redwood.logd.plist com.redwood.cellular.plist root/LaunchDaemons/
 	cp com.redwood.clockd.plist root/LaunchDaemons/
-	cp com.redwood.account-store.plist root/LaunchDaemons/     # (the Store relay at every boot, if installed)
+	# The Store relay is only useful when its /var/jb prefix and account dylibs
+	# are actually installed. x1slte keeps the old default (on); y2s's wrapper
+	# sets ACCOUNT_RELAY=0 so launchd does not retry a missing /var/jb/bin/sh
+	# and petrify the job at every boot.
+	if [ "${ACCOUNT_RELAY:-1}" = 1 ]; then
+		cp com.redwood.account-store.plist root/LaunchDaemons/
+	else
+		rm -f root/LaunchDaemons/com.redwood.account-store.plist
+		echo "build.sh: ACCOUNT_RELAY=0; not installing com.redwood.account-store.plist" >&2
+	fi
 	[ ! -x root/bin/redwood-motiond ] || cp com.redwood.motion-wake.plist root/LaunchDaemons/
 	[ ! -x root/bin/redwood-fpd ] || cp com.redwood.fpd.plist root/LaunchDaemons/
     # Shared graphics is automatic for normal applications. GRAPHICS_COMPAT=0

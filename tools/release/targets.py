@@ -44,6 +44,7 @@ DEFAULTS = {
     # build
     'TARGET_BOARD_CONF': '',           # loader memory map, common/devices/<board>.conf
     'TARGET_UEFI': '', 'TARGET_BOOTARGS': '', 'TARGET_FIRMWARE': '',
+    'TARGET_DISABLE_MODS': '',        # board-specific opt-out (y2s: softpasscode)
     # Android side (ExtremeROM values), used by Jesvi-iOS-Restore and checks
     'TARGET_SUPER_GROUP_NAME': 'group_basic', 'TARGET_SUPER_PARTITION_SIZE': '', 'TARGET_SUPER_GROUP_SIZE': '',
 }
@@ -193,6 +194,7 @@ def bootline(conf, disabled=(), data=None, userdata=None):
     if conf['TARGET_CAMERA']:
         words.append(f'cam_{conf["TARGET_CAMERA"]}=1')
     words += conf['TARGET_BOOTARGS'].split()
+    disabled = set(disabled) | set(conf.get('TARGET_DISABLE_MODS', '').split())
     for p, _ in active_modules(conf, disabled):
         if (p / 'bootargs').is_file():
             words += (p / 'bootargs').read_text().split()
@@ -215,6 +217,7 @@ def apply(conf, stage, dest, disabled=()):
         raise ValueError('stage is root or system')
     dest = Path(dest).resolve()
     applied = []
+    disabled = set(disabled) | set(conf.get('TARGET_DISABLE_MODS', '').split())
     for p, prop in active_modules(conf, disabled):
         overlay = p / stage
         if overlay.is_dir():

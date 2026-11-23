@@ -18,6 +18,23 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 ROOT=$(cd .. && pwd)
+# y2s has its own extracted sysimage tree so its selector and IconState overlay
+# cannot change x1slte or the release pipeline. It uses the default debloated
+# selector; set Y2S_FULL_ROOT=1 in sysimage-y2s/fetch.sh only for diagnostics.
+export IOS_INPUT_DIR=${IOS_INPUT_DIR:-../sysimage-y2s}
+[ -d "$IOS_INPUT_DIR/cryptex" ] || {
+	echo "build-gpu-y2s.sh: $IOS_INPUT_DIR is missing; run tools/y2s/fetch-full-root.sh" >&2
+	exit 1
+}
+# Only y2s gets the full IconState. The shared userland/var tree stays the one
+# x1slte has always used; this overlay is applied by build.sh when assembling root.
+export VAR_OVERLAY=var-y2s
+# y2s has no rootless /var/jb prefix: the inherited x1slte account-store job
+# would fail at /var/jb/bin/sh on every boot. Opt out unless explicitly enabled.
+export ACCOUNT_RELAY=${ACCOUNT_RELAY:-0}
+# The shared softpasscode mod belongs to x1slte's bootline and software bag; y2s
+# boots without it. The target carries the same opt-out for generated bootlines.
+export JESVI_MODS_DISABLE=${JESVI_MODS_DISABLE:-softpasscode}
 set +u # Legacy environment setup reads optional unset variables.
 source ../xnu/xnu-env.sh
 set -u

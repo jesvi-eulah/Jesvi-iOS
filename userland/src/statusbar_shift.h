@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/sysctl.h>
 #include <unistd.h>
 
 struct sbs_insets { double top, leading, bottom, trailing; };   /* NSDirectionalEdgeInsets */
@@ -337,12 +338,49 @@ sbs_provider_hook(void *unused)
 extern unsigned int IORegistryEntryFromPath(unsigned int, const char *);
 extern CFTypeRef IORegistryEntryCreateCFProperty(unsigned int, CFStringRef, CFAllocatorRef, unsigned int);
 extern int IOObjectRelease(unsigned int);
+
+/* On y2s the payload boot arg is authoritative: a status bar that cannot read IOKit (or reads it
+ * before the product node is published) must still behave like an island phone. Gate on the
+ * y2s-only cam_s20_y2s arg so x1slte's IOKit-only behaviour is exactly as before. */
+static bool
+sbs_boot_arg_is_one(const char *name)
+{
+	char args[1024], value[64];
+	size_t size = sizeof(args) - 1, n = strlen(name);
+	const char *p;
+
+	if (sysctlbyname("kern.bootargs", args, &size, NULL, 0) != 0) {
+		return false;
+	}
+	args[size < sizeof(args) ? size : sizeof(args) - 1] = 0;
+	for (p = args; *p != 0;) {
+		while (*p == ' ') {
+			p++;
+		}
+		if (strncmp(p, name, n) == 0 && p[n] == '=') {
+			size_t i = 0;
+
+			for (p += n + 1; *p != 0 && *p != ' ' && i + 1 < sizeof(value); p++) {
+				value[i++] = *p;
+			}
+			value[i] = 0;
+			return strcmp(value, "1") == 0;
+		}
+		while (*p != 0 && *p != ' ') {
+			p++;
+		}
+	}
+	return false;
+}
+
 static bool
 sbs_island_present(void)
 {
 	static int cached = -1;
 
 	if (cached < 0) {
+		const bool boot_island = sbs_boot_arg_is_one("cam_s20_y2s") &&
+		    sbs_boot_arg_is_one("island");
 		int subtype = 0;
 		unsigned int e = IORegistryEntryFromPath(0, "IODeviceTree:/product");
 
@@ -368,8 +406,10 @@ sbs_island_present(void)
 				CFRelease(v);
 			}
 		}
-		cached = subtype == 2556 || subtype == 2796;
-		sbs_log("island: artwork subtype %.0f (island %.0f)", subtype, cached);
+		cached = boot_island || subtype == 2556 || subtype == 2796;
+		/* Keep the two-number log line: show 2556 when the boot arg is the reason. */
+		sbs_log("island: artwork subtype %.0f (island %.0f)", boot_island && subtype != 2556 &&
+		    subtype != 2796 ? 2556.0 : (double)subtype, (double)cached);
 	}
 	return cached == 1;
 }

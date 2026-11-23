@@ -14,11 +14,14 @@
 #
 # Nothing of this is in the repository: the two disk images are fetched out of the IPSW on
 # Apple's CDN (fetch-from-ipsw.py reads single members of the archive, 4.7 GB + 2.7 GB instead of
-# all 6.2 GB) and unpacked with 7z. Needs: python3, 7z (7-Zip 23 or newer: it reads APFS), cc.
+# all 6.2 GB) and unpacked with 7-Zip. Needs: python3, 7zz (7-Zip 23 or newer: it reads APFS), cc.
 # About 8 GB of disk while it runs, 5.3 GB afterwards.
 #
 #   KEEP=1   keep the downloaded disk images (rootfs.dmg is needed again only after changing
 #            select-system.py; with it in place a second run downloads nothing)
+#   Y2S_FULL_ROOT=1  keep the whole iOS root outside /private/var (y2s's isolated
+#            sysimage-y2s tree only); the default selection is unchanged and x1slte
+#            keeps using it. The two big fonts are not trimmed in this mode.
 set -e
 cd "$(dirname "$0")"
 ROOTFS_DMG=096-04088-077.dmg                    # the root filesystem, APFS
@@ -27,7 +30,10 @@ APP_CRYPTEX_DMG=096-03536-083.dmg               # the App cryptex (BuildManifest
 CACHE=20F66__iPhone10,3_6
 UNZBM=../xnu-deps/host/bin/unzbm
 
-for tool in python3 7z cc; do
+# 7-Zip >= 21 is needed for APFS DMGs; Homebrew's `sevenzip` formula installs 7zz.
+ZIP=${SEVENZIP:-$(command -v 7zz || command -v 7z || true)}
+[ -n "$ZIP" ] || { echo "fetch.sh: 7zz (or 7z) is not installed"; exit 1; }
+for tool in python3 cc; do
 	command -v $tool >/dev/null || { echo "fetch.sh: $tool is not installed"; exit 1; }
 done
 # 7z leaves files compressed with LZBITMAP as an empty file and two attribute files; unzbm finishes them
@@ -43,25 +49,30 @@ unzbm_all() { # unzbm_all DIR: expand every LZBITMAP file below DIR
 }
 
 # --- the root filesystem --------------------------------------------------------------------------
-if [ ! -f .done-rootfs ] || [ select-system.py -nt .done-rootfs ]; then
+ROOTFS_DONE=.done-rootfs
+[ -z "${Y2S_FULL_ROOT:-}" ] || ROOTFS_DONE=.done-rootfs-full
+if [ ! -f "$ROOTFS_DONE" ] || [ select-system.py -nt "$ROOTFS_DONE" ]; then
 	if [ ! -f rootfs.dmg ]; then
 		echo "fetch.sh: downloading the root filesystem image (4.7 GB)"
 		python3 fetch-from-ipsw.py $ROOTFS_DMG rootfs.dmg.part
 		mv rootfs.dmg.part rootfs.dmg
 	fi
 	echo "fetch.sh: listing the image"
-	7z l -slt rootfs.dmg > rootfs.slt
+	"$ZIP" l -slt rootfs.dmg > rootfs.slt
 	python3 select-system.py rootfs.slt system.files system.manifest
 	python3 mkvarskel.py rootfs.slt > var.skel
 	echo "fetch.sh: extracting $(wc -l < system.files) files"
 	rm -rf rootfs
-	7z x -y -orootfs rootfs.dmg @system.files > extract-system.log
-	# the two fonts too big for the image as they are, made smaller in place (see select-system.py)
-	python3 ../tools/font_trim.py emoji rootfs/System/Library/Fonts/CoreAddition/AppleColorEmoji-160px.ttc \
-		rootfs/System/Library/Fonts/CoreAddition/AppleColorEmoji-160px.ttc 40,64,96
-	python3 ../tools/font_trim.py faces rootfs/System/Library/Fonts/LanguageSupport/PingFang.ttc \
-		rootfs/System/Library/Fonts/LanguageSupport/PingFang.ttc '^\.?PingFang(SC|TC|HK)-(Regular|Semibold)$'
-	touch .done-rootfs
+	"$ZIP" x -y -orootfs rootfs.dmg @system.files > extract-system.log
+	# the two fonts too big for the image as they are, made smaller in place (see select-system.py).
+	# Full-root y2s keeps the originals: "all bloat" includes the full fonts.
+	if [ -z "${Y2S_FULL_ROOT:-}" ]; then
+		python3 ../tools/font_trim.py emoji rootfs/System/Library/Fonts/CoreAddition/AppleColorEmoji-160px.ttc \
+			rootfs/System/Library/Fonts/CoreAddition/AppleColorEmoji-160px.ttc 40,64,96
+		python3 ../tools/font_trim.py faces rootfs/System/Library/Fonts/LanguageSupport/PingFang.ttc \
+			rootfs/System/Library/Fonts/LanguageSupport/PingFang.ttc '^\.?PingFang(SC|TC|HK)-(Regular|Semibold)$'
+	fi
+	touch "$ROOTFS_DONE"
 	[ -n "$KEEP" ] || rm -f rootfs.dmg
 fi
 
@@ -75,10 +86,10 @@ if [ ! -f .done-cryptex ]; then
 	echo "fetch.sh: extracting the cryptex"
 	rm -rf cryptex cryptex.cache $CACHE
 	# 7z reports every LZBITMAP file as an error ("Unsupported Method"): expected, unzbm_all checks the result
-	7z x -y -ocryptex cryptex-os.dmg '-xr!com.apple.dyld' '-x!System/DriverKit' > extract-cryptex.log 2>&1 || true
+	"$ZIP" x -y -ocryptex cryptex-os.dmg '-xr!com.apple.dyld' '-x!System/DriverKit' > extract-cryptex.log 2>&1 || true
 	unzbm_all cryptex
 	# the dyld shared cache; its .symbols file (0.6 GB) is never mapped and is left out
-	7z x -y -ocryptex.cache cryptex-os.dmg System/Library/Caches/com.apple.dyld '-xr!*.symbols*' > extract-dyld.log 2>&1 || true
+	"$ZIP" x -y -ocryptex.cache cryptex-os.dmg System/Library/Caches/com.apple.dyld '-xr!*.symbols*' > extract-dyld.log 2>&1 || true
 	unzbm_all cryptex.cache
 	mv cryptex.cache/System/Library/Caches/com.apple.dyld $CACHE
 	rm -rf cryptex.cache
@@ -98,7 +109,7 @@ if [ ! -f .done-cryptex-app ]; then
 	fi
 	echo "fetch.sh: extracting the App cryptex"
 	rm -rf cryptex-app
-	7z x -y -ocryptex-app cryptex-app.dmg > extract-cryptex-app.log 2>&1 || true
+	"$ZIP" x -y -ocryptex-app cryptex-app.dmg > extract-cryptex-app.log 2>&1 || true
 	unzbm_all cryptex-app
 	[ -f cryptex-app/usr/libexec/webbookmarksd ] || { echo "fetch.sh: the App cryptex is incomplete"; exit 1; }
 	touch .done-cryptex-app
