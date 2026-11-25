@@ -1,13 +1,21 @@
 #!/usr/bin/env python3
 """Generate the boot menu font from the pinned XNU source used by this build."""
 import json
+import os
 from pathlib import Path
 import re
 from manage import ROOT
 
 
-def generate(root):
-    metadata = json.loads((root / 'out/kernel/build.json').read_text())
+def kernel_metadata(root, device=None):
+    """build.json of the kernel ci/build-kernel.sh made for this target (x1slte: out/kernel, others: out/experimental/<id>)."""
+    device = device or os.environ.get('JESVI_TARGET', 'x1slte')
+    path = root / ('out/kernel' if device == 'x1slte' else f'out/experimental/{device}') / 'build.json'
+    return json.loads(path.read_text())
+
+
+def generate(root, device=None):
+    metadata = kernel_metadata(root, device)
     key = metadata['kernel_source_key']
     if not re.fullmatch('[a-f0-9]{64}', key):
         raise ValueError('invalid kernel source key')
