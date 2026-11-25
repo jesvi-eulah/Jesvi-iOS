@@ -73,7 +73,7 @@ permissions:
 # Only the release step is serialized per tag (job "release" below).
 jobs:
   configuration:
-    name: 1. Check settings
+    name: Check settings
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
@@ -123,7 +123,7 @@ jobs:
             exit 1
           fi
   y2s-board:
-    name: "2. S20+ / S20 Ultra: UEFI loader"
+    name: "S20+ / S20 Ultra: UEFI loader"
     needs: configuration
     # S20+ and S20 Ultra share the y2s UEFI (Mu-y2s) and boot DTBH.
     if: needs.configuration.outputs.y2s_family == 'true' && inputs.runner != 'self-hosted'
@@ -131,8 +131,8 @@ jobs:
     # The encrypted board-input handoff key lives in the private-images environment.
     secrets: inherit
   # The S20 needs no UEFI build: it starts at once, in parallel with the S20+ family's Mu job.
-  candidate-s20:
-    name: "3. Build ${{ matrix.target == 'x1slte' && 'Galaxy S20 (x1s)' || (matrix.target == 'y2s' && 'Galaxy S20+ (y2s)' || 'Galaxy S20 Ultra (z3s)') }}"
+  build-s20:
+    name: Build Galaxy S20 (${{ matrix.target == 'x1slte' && 'x1s' || matrix.target }})
     needs: configuration
     if: needs.configuration.outputs.s20 == 'true'
     strategy:
@@ -393,25 +393,38 @@ jobs:
             out/experimental/y2s/build.log
           retention-days: 7
           if-no-files-found: ignore
-  # S20+ and S20 Ultra: same steps (YAML anchors above), after their shared Mu-y2s job.
-  candidate:
-    name: "3. Build ${{ matrix.target == 'x1slte' && 'Galaxy S20 (x1s)' || (matrix.target == 'y2s' && 'Galaxy S20+ (y2s)' || 'Galaxy S20 Ultra (z3s)') }}"
+  # S20+ and S20 Ultra: the same steps (YAML anchors above), after their shared UEFI loader job.
+  build-s20plus:
+    name: Build Galaxy S20+ (${{ matrix.target }})
     needs: [configuration, y2s-board]
     if: >-
-      ${{ !cancelled() && needs.configuration.outputs.y2s_family == 'true' &&
-      needs.y2s-board.result == 'success' }}
+      ${{ !cancelled() && inputs.s20plus && needs.configuration.result == 'success' &&
+      (needs.y2s-board.result == 'success' || needs.y2s-board.result == 'skipped') }}
     strategy:
-      fail-fast: false
       matrix:
-        target: ${{ fromJSON(needs.configuration.outputs.family) }}
+        target: [y2s]
+    environment: private-images
+    runs-on: *phone-runner
+    timeout-minutes: 360
+    env: *phone-env
+    steps: *phone-steps
+  build-s20ultra:
+    name: Build Galaxy S20 Ultra (${{ matrix.target }})
+    needs: [configuration, y2s-board]
+    if: >-
+      ${{ !cancelled() && inputs.s20ultra && needs.configuration.result == 'success' &&
+      (needs.y2s-board.result == 'success' || needs.y2s-board.result == 'skipped') }}
+    strategy:
+      matrix:
+        target: [z3s]
     environment: private-images
     runs-on: *phone-runner
     timeout-minutes: 360
     env: *phone-env
     steps: *phone-steps
   release:
-    name: 4. Add to the GitHub release
-    needs: [configuration, candidate-s20, candidate]
+    name: Add to the GitHub release
+    needs: [configuration, build-s20, build-s20plus, build-s20ultra]
     # Runs once after every phone, even if one failed: finished phones are still added.
     if: ${{ !cancelled() && inputs.release_tag != '' && needs.configuration.result == 'success' }}
     runs-on: ubuntu-24.04
