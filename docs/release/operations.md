@@ -212,5 +212,14 @@ visibility change alone does not publish full images.
 | data_gb | iOS data volume size (`all`, 32, 64, 96); y2s always uses all |
 | disable_mods | optional features to leave out (`devices/exynos990/mods`) |
 | keep_days | how long the downloadable ZIPs stay on GitHub |
+| release_tag | add this build to GitHub release TAG (e.g. `v0.4`); run once per phone with the same tag |
+| release_state | `draft` (press Publish on GitHub yourself) or `publish` |
 
 The run title shows version, phone, mode and writes; the run summary lists every setting used.
+
+### Releases from the build
+
+With `release_tag` set, the build runs `tools/release/publish-release.sh`: it creates the release (draft by
+default), uploads the Restore ZIP and a merged `SHA256SUMS`, and rewrites the notes with one section per phone.
+The installer stays one file. It is larger than GitHub's 2 GiB release-asset limit, so the notes link the build's
+artifact download: it needs a GitHub login, arrives wrapped in an artifact ZIP, and is kept 90 days.

@@ -1,6 +1,6 @@
 name: Build Jesvi iOS (TWRP)
 run-name: >-
-  Jesvi iOS ${{ inputs.version || 'release.conf' }} · ${{ inputs.target == 'y2s' && 'Galaxy S20+' || 'Galaxy S20' }}
+  Jesvi iOS ${{ inputs.release_tag || inputs.version || 'release.conf' }} · ${{ inputs.target == 'y2s' && 'Galaxy S20+' || 'Galaxy S20' }}
   · ${{ inputs.target == 'y2s' && 'fresh' || inputs.mode }} · writes ${{ inputs.writes }}
 # Same build.sh release as local builds; public image output requires explicit opt-in.
 on:
@@ -46,10 +46,19 @@ on:
         type: string
         default: ''
       keep_days:
-        description: How many days GitHub keeps the downloadable ZIPs
+        description: How many days GitHub keeps the downloadable ZIPs (a release build always keeps them 90)
         type: choice
-        options: ['7', '1', '3', '14', '30']
+        options: ['7', '1', '3', '14', '30', '90']
         default: '7'
+      release_tag:
+        description: Add this build to GitHub release TAG (e.g. v0.4); empty = no release. Run once per phone with the same tag
+        type: string
+        default: ''
+      release_state:
+        description: draft = you press Publish on GitHub; publish = public at once
+        type: choice
+        options: [draft, publish]
+        default: draft
 permissions:
   contents: read
 concurrency:
@@ -93,6 +102,8 @@ jobs:
       ${{ !cancelled() && needs.configuration.result == 'success' &&
       (needs.y2s-board.result == 'success' || needs.y2s-board.result == 'skipped') }}
     environment: private-images
+    permissions:
+      contents: write   # only used by "Add to the GitHub release" when release_tag is set
     runs-on: ${{ inputs.runner == 'self-hosted' && fromJSON('["self-hosted", "macOS", "exynos990-private"]') || (inputs.runner == 'macos-26' && 'macos-26' || 'macos-15') }}
     timeout-minutes: 360
     env:
@@ -257,12 +268,22 @@ jobs:
           name: jesvi-ios-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ env.RELEASE_OUT }}/
           compression-level: 0
-          retention-days: ${{ fromJSON(inputs.keep_days) }}
+          retention-days: ${{ inputs.release_tag != '' && 90 || fromJSON(inputs.keep_days) }}
           if-no-files-found: error
       - name: Link to the verified packages
         env:
           PACKAGE_URL: ${{ steps.packages.outputs.artifact-url }}
         run: printf '[Download package ZIPs and SHA-256 checksums](%s)\n' "$PACKAGE_URL" >> "$GITHUB_STEP_SUMMARY"
+      - name: Add to the GitHub release
+        if: inputs.release_tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ inputs.release_tag }}
+          STATE: ${{ inputs.release_state }}
+          PACKAGE_URL: ${{ steps.packages.outputs.artifact-url }}
+        run: |
+          bash tools/release/publish-release.sh "$TAG" "$RELEASE_OUT" "$PACKAGE_URL" "$STATE" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Upload build diagnostics
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
