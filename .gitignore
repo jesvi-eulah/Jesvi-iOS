@@ -128,3 +128,8 @@ __pycache__/
 
 # research notes and debug images: kept on this Mac, not published (user, 2026-11-20)
 docs/research/
+
+# build outputs and device state that must never be committed (2026-11-25 cleanup)
+/tools/cellular/telephonyd/out/
+/tools/oslogq/oslogq
+/userland/var/root/Library/Lockdown/
