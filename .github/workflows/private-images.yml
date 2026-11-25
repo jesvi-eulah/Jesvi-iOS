@@ -349,7 +349,7 @@ jobs:
           done
       - name: Upload this run's verified packages
         id: packages
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: jesvi-ios-${{ matrix.target }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ env.RELEASE_OUT }}/
@@ -365,7 +365,7 @@ jobs:
           cp "$RELEASE_OUT"/*.sha256 "$RELEASE_OUT"/Jesvi-iOS-Restore_*.zip "$RUNNER_TEMP/meta/"
       - name: Upload the small release files
         if: inputs.release_tag != ''
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-meta-${{ matrix.target }}
           path: ${{ runner.temp }}/meta/
@@ -377,7 +377,7 @@ jobs:
         run: printf '[Download package ZIPs and SHA-256 checksums](%s)\n' "$PACKAGE_URL" >> "$GITHUB_STEP_SUMMARY"
       - name: Upload build diagnostics
         if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: private-build-logs-${{ matrix.target }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
