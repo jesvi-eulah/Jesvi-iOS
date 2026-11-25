@@ -21,26 +21,13 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
-      - name: Fetch the Exynos 990 boot device tree
-        # The boot-image DTB is the generic Exynos 990 tree shared by the S20
-        # and S20+ (board specifics live in dtbo). It is byte-identical to the
-        # one in the S20's stock boot image and to the y2s.dtb shipped by
-        # stormtroopxyz/y2sios, so no Samsung firmware download (or IMEI) is
-        # needed. Pinned by commit and SHA-256.
+      - name: Fetch the shared Exynos 990 boot device tree
+        # One pinned, checksummed tree for every 990 phone (devices/exynos990/platform.conf).
         run: |
           set -euo pipefail
           sudo apt-get update -qq
-          sudo apt-get install -y age
-          trees="$RUNNER_TEMP/stock/trees"
-          mkdir -p "$trees"
-          curl --fail --silent --show-error --location --proto '=https' --retry 3 \
-            --output "$trees/stock-boot-dtb.img" \
-            https://raw.githubusercontent.com/stormtroopxyz/y2sios/68fe2e922a52917ed851c1499e394fe5436365b5/uefi/Resources/DTBs/y2s.dtb
-          echo 'ffcad4d6011d108329f801abb9ca9ee48cffd6ccfc2704ea47d5e8f24507e22b  '"$trees/stock-boot-dtb.img" | sha256sum --check
-          # Stock DTBH = 64-byte Samsung table header + the single tree.
-          { printf 'd7b7ab1e000533cc0000002000000020000000010000002000000800000000000005338c00000040000000000000000000000000ff0000000000000000000000' | xxd -r -p
-            cat "$trees/stock-boot-dtb.img"; } > "$trees/stock-boot-dtbh.img"
-          echo '9596875233beaf42706c3427aded6b981f4844e4f05b75ddd5f390c70c51b276  '"$trees/stock-boot-dtbh.img" | sha256sum --check
+          sudo apt-get install -y age xxd
+          tools/devices/fetch-boot-dtb.sh "$RUNNER_TEMP/stock/trees"
       - name: Build Mu-Silicium for y2s
         run: |
           set -euo pipefail

@@ -97,6 +97,8 @@ For S20+ 5G, use the [y2s build guide](tools/y2s/README.md) to prepare the board
 
 For regional G980 and G986 devices, recovery accepts firmware revisions that identify the phone’s model and warns on untested revisions. It also checks the Exynos SoC, bootloader unlock state and partition sizes. These builds support Exynos hardware only.
 
+**Own another Exynos 990 phone** (S20 Ultra, Note20, Note20 Ultra, S20 FE, S20 5G)? The shared base does most of the work: see [Adding another Exynos 990 phone](docs/porting/new-device.md).
+
 ## Credits and licenses
 
 Jesvi Jonathan maintains Jesvi iOS. [Android-Artisan](https://github.com/Android-Artisan) contributed the S20+ 5G port, board measurements, first-install tooling and loader update workflow in [PR #7](https://github.com/jesvi-eulah/Jesvi-iOS/pull/7).
