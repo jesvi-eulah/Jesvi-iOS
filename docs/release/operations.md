@@ -200,3 +200,17 @@ spending-limit error; no hosted full ZIP was produced.
 The owner made Jesvi-iOS public on 2026-11-21 and explicitly authorized a public
 full installer ZIP. The workflow keeps a separate public-output opt-in so a future
 visibility change alone does not publish full images.
+
+### Build options (Actions → Build Jesvi iOS (TWRP) → Run workflow)
+
+| Input | What it does |
+|---|---|
+| target | `x1slte` Galaxy S20, `y2s` Galaxy S20+ 5G |
+| runner | GitHub macOS 15, macOS 26, or the private Mac |
+| mode / writes / outputs | install mode, preflight vs flashable, which packages |
+| version | version label in the ZIP names (empty = `release.conf`) |
+| data_gb | iOS data volume size (`all`, 32, 64, 96); y2s always uses all |
+| disable_mods | optional features to leave out (`devices/exynos990/mods`) |
+| keep_days | how long the downloadable ZIPs stay on GitHub |
+
+The run title shows version, phone, mode and writes; the run summary lists every setting used.

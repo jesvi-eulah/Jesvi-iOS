@@ -1,4 +1,4 @@
-name: Build S20+ 5G board inputs
+name: Build S20+ 5G UEFI and board inputs
 on:
   workflow_dispatch:
   workflow_call:

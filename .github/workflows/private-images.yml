@@ -1,10 +1,13 @@
-name: Build Jesvi iOS for Galaxy S20 (TWRP)
+name: Build Jesvi iOS (TWRP)
+run-name: >-
+  Jesvi iOS ${{ inputs.version || 'release.conf' }} · ${{ inputs.target == 'y2s' && 'Galaxy S20+ 5G' || 'Galaxy S20' }}
+  · ${{ inputs.target == 'y2s' && 'fresh' || inputs.mode }} · writes ${{ inputs.writes }}
 # Same build.sh release as local builds; public image output requires explicit opt-in.
 on:
   workflow_dispatch:
     inputs:
       target:
-        description: Galaxy S20 LTE (x1slte) or Galaxy S20+ 5G (y2s)
+        description: 'Phone: x1slte = Galaxy S20 (SM-G980F), y2s = Galaxy S20+ 5G (SM-G986B)'
         type: choice
         options: [x1slte, y2s]
         default: x1slte
@@ -29,6 +32,24 @@ on:
         description: Override release.conf OUTPUTS (e.g. "twrp restore tar"); empty keeps the file's value
         type: string
         default: ''
+      version:
+        description: Version label in the ZIP name (e.g. 0.4-beta1); empty keeps release.conf VERSION
+        type: string
+        default: ''
+      data_gb:
+        description: iOS data volume size in GB (16-112) or all of userdata; y2s always uses all
+        type: choice
+        options: [from-release.conf, all, '32', '64', '96']
+        default: from-release.conf
+      disable_mods:
+        description: Optional features to leave out, space separated (see devices/exynos990/mods, e.g. "island softpasscode")
+        type: string
+        default: ''
+      keep_days:
+        description: How many days GitHub keeps the downloadable ZIPs
+        type: choice
+        options: ['7', '1', '3', '14', '30']
+        default: '7'
 permissions:
   contents: read
 concurrency:
@@ -63,9 +84,7 @@ jobs:
     needs: configuration
     if: inputs.target == 'y2s' && inputs.runner != 'self-hosted'
     uses: ./.github/workflows/y2s-firmware.yml
-    # The firmware download and the encrypted board-input handoff live in the
-    # private-images environment. Without this, the called workflow sees empty
-    # secrets and can neither fetch the stock ZIP nor encrypt Mu-y2s.img.
+    # The encrypted board-input handoff key lives in the private-images environment.
     secrets: inherit
   candidate:
     name: Build and verify release packages
@@ -159,7 +178,7 @@ jobs:
           python3 tools/release/hosted_inputs.py unpack \
             --archive "$archive" --root "$GITHUB_WORKSPACE" --sha256 "$INPUTS_SHA256"
           rm "$archive"
-      - name: Fetch encrypted S20+ board inputs
+      - name: Fetch encrypted S20+ board inputs (Mu UEFI + boot DTBH)
         if: inputs.target == 'y2s' && inputs.runner != 'self-hosted'
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
@@ -185,6 +204,9 @@ jobs:
           OUTPUTS_INPUT: ${{ inputs.outputs }}
           MODE_INPUT: ${{ inputs.mode }}
           TARGET_INPUT: ${{ inputs.target }}
+          VERSION_INPUT: ${{ inputs.version }}
+          DATA_INPUT: ${{ inputs.data_gb }}
+          MODS_INPUT: ${{ inputs.disable_mods }}
         run: |
           test ! -e "$RELEASE_OUT"
           args=(--set "OUT=$RELEASE_OUT" --set "TARGETS=$TARGET_INPUT")
@@ -203,6 +225,15 @@ jobs:
           if [ "$MODE_INPUT" != from-release.conf ] && [ "$TARGET_INPUT" != y2s ]; then args+=(--set "MODE=$MODE_INPUT"); fi
           if [ "$WRITES_INPUT" != from-release.conf ]; then args+=(--set "WRITES=$WRITES_INPUT"); fi
           if [ -n "$OUTPUTS_INPUT" ]; then args+=(--set "OUTPUTS=$OUTPUTS_INPUT"); fi
+          if [ -n "$VERSION_INPUT" ]; then args+=(--set "VERSION=$VERSION_INPUT"); fi
+          if [ "$DATA_INPUT" != from-release.conf ] && [ "$TARGET_INPUT" != y2s ]; then args+=(--set "IOS_DATA_GB=$DATA_INPUT"); fi
+          if [ -n "$MODS_INPUT" ]; then args+=(--set "MODS_DISABLE=$MODS_INPUT"); fi
+          {
+            echo '### Build settings'
+            echo '| Setting | Value |'
+            echo '|---|---|'
+            for a in "${args[@]}"; do [ "$a" = --set ] || echo "| ${a%%=*} | \`${a#*=}\` |"; done
+          } >> "$GITHUB_STEP_SUMMARY"
           ./build.sh release --dry-run "${args[@]}"
           ./build.sh release "${args[@]}"
           (
@@ -226,7 +257,7 @@ jobs:
           name: jesvi-ios-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ env.RELEASE_OUT }}/
           compression-level: 0
-          retention-days: 7
+          retention-days: ${{ fromJSON(inputs.keep_days) }}
           if-no-files-found: error
       - name: Link to the verified packages
         env:
