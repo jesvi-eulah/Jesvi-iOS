@@ -1,15 +1,15 @@
 name: Build Jesvi iOS (TWRP)
 run-name: >-
-  Jesvi iOS ${{ inputs.release_tag || inputs.version || 'release.conf' }} · ${{ inputs.target == 'y2s' && 'Galaxy S20+' || 'Galaxy S20' }}
-  · ${{ inputs.target == 'y2s' && 'fresh' || inputs.mode }} · writes ${{ inputs.writes }}
+  Jesvi iOS ${{ inputs.release_tag || inputs.version || 'release.conf' }} · ${{ inputs.target == 'y2s' && 'Galaxy S20+' || (inputs.target == 'z3s' && 'Galaxy S20 Ultra' || 'Galaxy S20') }}
+  · ${{ inputs.target != 'x1slte' && 'fresh' || inputs.mode }} · writes ${{ inputs.writes }}
 # Same build.sh release as local builds; public image output requires explicit opt-in.
 on:
   workflow_dispatch:
     inputs:
       target:
-        description: 'Board: x1slte = Galaxy S20 ZIP (G980F + G981B), y2s = Galaxy S20+ ZIP (G986B + G985F)'
+        description: 'Board: x1slte = Galaxy S20 (G980F + G981B), y2s = Galaxy S20+ (G986B + G985F), z3s = Galaxy S20 Ultra (G988B, first-boot profile)'
         type: choice
-        options: [x1slte, y2s]
+        options: [x1slte, y2s, z3s]
         default: x1slte
       runner:
         description: GitHub macOS 15 (hosted), GitHub macOS 26, or a provisioned private Mac
@@ -91,7 +91,8 @@ jobs:
           fi
   y2s-board:
     needs: configuration
-    if: inputs.target == 'y2s' && inputs.runner != 'self-hosted'
+    # S20+ and S20 Ultra share the y2s UEFI (Mu-y2s) and boot DTBH.
+    if: (inputs.target == 'y2s' || inputs.target == 'z3s') && inputs.runner != 'self-hosted'
     uses: ./.github/workflows/y2s-firmware.yml
     # The encrypted board-input handoff key lives in the private-images environment.
     secrets: inherit
@@ -190,13 +191,13 @@ jobs:
             --archive "$archive" --root "$GITHUB_WORKSPACE" --sha256 "$INPUTS_SHA256"
           rm "$archive"
       - name: Fetch encrypted S20+ board inputs (Mu UEFI + boot DTBH)
-        if: inputs.target == 'y2s' && inputs.runner != 'self-hosted'
+        if: (inputs.target == 'y2s' || inputs.target == 'z3s') && inputs.runner != 'self-hosted'
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: y2s-board-inputs
           path: ${{ runner.temp }}/y2s
       - name: Stage the S20+ Mu image and stock DTBH
-        if: inputs.target == 'y2s' && inputs.runner != 'self-hosted'
+        if: (inputs.target == 'y2s' || inputs.target == 'z3s') && inputs.runner != 'self-hosted'
         env:
           INPUTS_AGE_KEY: ${{ secrets.HOSTED_BOARD_INPUTS_AGE_KEY }}
         run: |
@@ -221,9 +222,9 @@ jobs:
         run: |
           test ! -e "$RELEASE_OUT"
           args=(--set "OUT=$RELEASE_OUT" --set "TARGETS=$TARGET_INPUT")
-          if [ "$TARGET_INPUT" = y2s ]; then
+          if [ "$TARGET_INPUT" = y2s ] || [ "$TARGET_INPUT" = z3s ]; then
             if [ "$MODE_INPUT" != from-release.conf ] && [ "$MODE_INPUT" != fresh ]; then
-              echo "::error::y2s TWRP is first-install only; choose mode from-release.conf or fresh."
+              echo "::error::$TARGET_INPUT TWRP is first-install only; choose mode from-release.conf or fresh."
               exit 1
             fi
             # Measured y2s image geometry: full userdata, first-install only.
@@ -233,11 +234,11 @@ jobs:
             # the operator deliberately asked for a preflight.
             if [ "$WRITES_INPUT" = from-release.conf ]; then args+=(--set WRITES=true); fi
           fi
-          if [ "$MODE_INPUT" != from-release.conf ] && [ "$TARGET_INPUT" != y2s ]; then args+=(--set "MODE=$MODE_INPUT"); fi
+          if [ "$MODE_INPUT" != from-release.conf ] && [ "$TARGET_INPUT" = x1slte ]; then args+=(--set "MODE=$MODE_INPUT"); fi
           if [ "$WRITES_INPUT" != from-release.conf ]; then args+=(--set "WRITES=$WRITES_INPUT"); fi
           if [ -n "$OUTPUTS_INPUT" ]; then args+=(--set "OUTPUTS=$OUTPUTS_INPUT"); fi
           if [ -n "$VERSION_INPUT" ]; then args+=(--set "VERSION=$VERSION_INPUT"); fi
-          if [ "$DATA_INPUT" != from-release.conf ] && [ "$TARGET_INPUT" != y2s ]; then args+=(--set "IOS_DATA_GB=$DATA_INPUT"); fi
+          if [ "$DATA_INPUT" != from-release.conf ] && [ "$TARGET_INPUT" = x1slte ]; then args+=(--set "IOS_DATA_GB=$DATA_INPUT"); fi
           if [ -n "$MODS_INPUT" ]; then args+=(--set "MODS_DISABLE=$MODS_INPUT"); fi
           {
             echo '### Build settings'

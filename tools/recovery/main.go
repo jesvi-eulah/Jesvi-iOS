@@ -106,6 +106,8 @@ func run() error {
 	headerName, headerModel := "Galaxy S20", "SM-G980F"
 	if b.Config.Device == "y2s" {
 		headerName, headerModel = "Galaxy S20+", "SM-G986B"
+	} else if b.Config.Device == "z3s" {
+		headerName, headerModel = "Galaxy S20 Ultra", "SM-G988B"
 	} else if len(b.Config.Models) > 0 {
 		headerModel = b.Config.Models[0]
 	}

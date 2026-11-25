@@ -97,6 +97,10 @@ For S20+ 5G, use the [y2s build guide](tools/y2s/README.md) to prepare the board
 
 Larger storage models (256/512 GB) install too: iOS uses the first 116 GB of userdata for now and the rest stays unused.
 
+### z3s · Galaxy S20 Ultra
+
+- **SM-G988B** (5G) — **Untested first-boot build.** Built on the S20+ image path with camera, flash, sensor hub and haptics off. [Notes and how to test](docs/devices/z3s.md)
+
 For regional G980 and G986 devices, recovery accepts firmware revisions that identify the phone’s model and warns on untested revisions. It also checks the Exynos SoC, bootloader unlock state and partition sizes. These builds support Exynos hardware only.
 
 **Own another Exynos 990 phone** (S20 Ultra, Note20, Note20 Ultra, S20 FE, S20 5G)? The shared base does most of the work: see [Adding another Exynos 990 phone](docs/porting/new-device.md).

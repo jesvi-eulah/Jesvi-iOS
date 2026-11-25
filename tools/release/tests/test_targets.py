@@ -35,6 +35,18 @@ class TargetTests(unittest.TestCase):
         self.assertNotIn('softpasscode=1', words)
         self.assertLessEqual(len(line), targets.BOOTLINE_MAX)
 
+    def test_z3s_first_boot_line(self):
+        # The S20 Ultra boots the y2s image path with only the drivers known to match.
+        line = targets.bootline(targets.load('z3s'))
+        self.assertEqual(sorted(line.split()),
+                         sorted((ROOT / 'devices/exynos990/z3s/z3s.cmdline').read_text().split()))
+        words = line.split()
+        for word in ('touch_ts=1', 'wifi_pcie=4', 'mali=1', 'metal=1', 'ufs_userdata_all=1', 'bms=1'):
+            self.assertIn(word, words)
+        for prefix in ('cam=', 'cam_s20', 'haptic=', 'shub=', 'torch=', 'softpasscode='):
+            self.assertFalse([w for w in words if w.startswith(prefix)], prefix)
+        self.assertLessEqual(len(line), targets.BOOTLINE_MAX)
+
     def test_touchid_off_without_ported_libbkdm1(self):
         import tempfile
         line = targets.bootline(targets.load('x1slte'))

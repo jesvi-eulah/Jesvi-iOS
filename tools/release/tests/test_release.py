@@ -251,7 +251,7 @@ class SafetyTests(unittest.TestCase):
             profile('../x1slte')
 
     def test_roadmap_targets_are_not_marked_supported(self):
-        for name in ('z3s', 'c1s', 'c2s', 'r8s'):
+        for name in ('c1s', 'c2s', 'r8s'):  # z3s: development (first-boot profile on the y2s image path)
             d = profile(name)
             self.assertEqual(d['status'], 'unmaintained')
             self.assertFalse(d['installer_validated'])

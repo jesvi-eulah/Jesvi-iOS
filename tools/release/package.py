@@ -14,19 +14,19 @@ import sys
 import tempfile
 from cache import digest
 from images import android_head, apfs, recovery, hfs_kit
-from manage import ROOT, profile
+from manage import ROOT, profile, IMAGE_TARGETS, Y2S_FAMILY
 
 
 def package(device, dest):
     d = profile(device)
-    if device not in ('x1slte', 'y2s'):
+    if device not in IMAGE_TARGETS:
         raise ValueError('no packaging adapter for this unqualified board')
     dest = dest.absolute()
     if dest.exists():
         raise ValueError('destination already exists; use a new candidate directory')
     # x1slte keeps its long-standing paths. y2s has its own stock-geometry
     # recovery image and a debloated sysimage tree; never share the x1slte input.
-    rec = ROOT / ('out/y2s/y2s-recovery.img' if device == 'y2s' else 'out/x1slte-recovery.img')
+    rec = ROOT / (f'out/{device}/{device}-recovery.img' if device in Y2S_FAMILY else 'out/x1slte-recovery.img')
     system = ROOT / 'userland/system.apfs'
     recovery(rec, d)
     apfs(system, d['layout']['system_max_bytes'])

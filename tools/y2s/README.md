@@ -75,15 +75,13 @@ DTBH, builds the iOS images, and verifies the installer and Restore ZIPs. The
 hosted build uses the compact Apple extraction, the y2s userland overlay, and the
 full userdata volume. y2s always builds `MODE=fresh` with `IOS_DATA_GB=all`; with
 the default `writes=from-release.conf` the result is a **flashable first-install
-TWRP ZIP** (writes enabled after the 45-second cancel window), not a preflight.
+TWRP ZIP** (writes enabled after the 10-second cancel window), not a preflight.
 Choose `writes=false` if you only want the read-only checking ZIP.
 
-Set `Y2S_FUS_IMEI` in the `private-images` environment to download through
-Samsung's firmware service. A direct HTTPS link to the full
-[SM-G986B XSG stock ZIP](https://samfw.com/firmware/SM-G986B/XSG/G986BXXSNHYB1)
-can be supplied as `Y2S_STOCK_FIRMWARE_URL` instead. The runner checks that ZIP
-against the published MD5 before extraction. Both routes use
-`HOSTED_BOARD_INPUTS_AGE_KEY` for the artifact handoff.
+No Samsung firmware download or IMEI is needed: the stock boot device tree is the
+generic Exynos 990 tree, pinned by SHA-256 in `devices/exynos990/platform.conf` and
+fetched by `tools/devices/fetch-boot-dtb.sh`. `HOSTED_BOARD_INPUTS_AGE_KEY` encrypts
+the Mu image handoff. The S20 Ultra (`target=z3s`) uses the same UEFI and DTBH.
 For a local release build with the reviewed shared board inputs already staged,
 place `Mu-y2s.img` and `stock-boot-dtbh.img` in `inputs/y2s/` and run:
 

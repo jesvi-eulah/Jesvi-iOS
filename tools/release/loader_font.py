@@ -10,6 +10,7 @@ from manage import ROOT
 def kernel_metadata(root, device=None):
     """build.json of the kernel ci/build-kernel.sh made for this target (x1slte: out/kernel, others: out/experimental/<id>)."""
     device = device or os.environ.get('JESVI_TARGET', 'x1slte')
+    device = 'y2s' if device == 'z3s' else device  # z3s boots the shared y2s kernel
     path = root / ('out/kernel' if device == 'x1slte' else f'out/experimental/{device}') / 'build.json'
     return json.loads(path.read_text())
 

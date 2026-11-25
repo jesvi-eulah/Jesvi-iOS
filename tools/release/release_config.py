@@ -6,7 +6,7 @@ from pathlib import Path
 import re
 import shutil
 import tarfile
-from manage import ROOT, profile
+from manage import ROOT, profile, IMAGE_TARGETS, Y2S_FAMILY
 
 KEYS = {'NAME': 'Jesvi-iOS', 'VERSION': '0.0.0', 'TARGETS': 'x1slte', 'OUTPUTS': 'twrp restore',
         'MODE': 'fresh', 'IOS_DATA_GB': 'all', 'WRITES': 'false', 'BUNDLE': '', 'OUT': 'dist/release', 'MODS_DISABLE': ''}
@@ -97,8 +97,8 @@ def plan(conf):
         if d['status'] == 'unmaintained':
             skipped.append((target, 'no measured device profile yet (docs/release/porting.md)'))
             continue
-        if target == 'y2s' and conf['MODE'] != 'fresh' and set(conf['OUTPUTS']) & {'twrp', 'preflight'}:
-            raise ValueError('y2s TWRP requires MODE=fresh; use the loader for updates')
+        if target in Y2S_FAMILY and conf['MODE'] != 'fresh' and set(conf['OUTPUTS']) & {'twrp', 'preflight'}:
+            raise ValueError(f'{target} TWRP requires MODE=fresh; use the loader for updates')
         n = names(conf, package_name(target))
         for out in dict.fromkeys(conf['OUTPUTS']):
             todo.append((target, out, conf['OUT'] / n[out]))
@@ -130,7 +130,7 @@ def build(conf, dry_run=False):
             write_tar(b, path)
         else:
             # y2s's TWRP ZIP is first-install only; loader flashes carry updates.
-            mode = 'fresh' if target == 'y2s' else conf['MODE']
+            mode = 'fresh' if target in Y2S_FAMILY else conf['MODE']
             package(b, path, mode, conf['WRITES'] and out == 'twrp')
     print(f'Release files in {conf["OUT"].relative_to(ROOT)}; hardware qualification pending')
     return 0
@@ -146,7 +146,7 @@ def bundle_for(conf, target):
         if json.loads((b / 'manifest.json').read_text()).get('device') != target:
             raise ValueError(f'BUNDLE was not built for {target}')
         return b
-    if target not in ('x1slte', 'y2s'):
+    if target not in IMAGE_TARGETS:
         raise ValueError(f'{target}: no image build adapter yet; set BUNDLE to a verified candidate')
     from local_build import build as local
     stamp = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')

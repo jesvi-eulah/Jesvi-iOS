@@ -134,3 +134,27 @@ func TestSiblingModelsAccepted(t *testing.T) {
 		}
 	}
 }
+
+func TestS20UltraIdentity(t *testing.T) {
+	c := Config{AllowWrites: true, Models: []string{"SM-G988B"}, Bootloaders: []string{"G988BXXSNHYB1"}, Products: []string{"z3s"}}
+	for _, tc := range []struct {
+		model, firmware string
+		ok              bool
+	}{
+		{"SM-G988B", "G988BXXSNHYB1", true},
+		{"SM-G988B", "G988BXXUEFVG5", true}, // other bootloader of the same model
+		{"SM-G988B/DS", "G988BXXSKHXEA", true},
+		{"SM-G986B", "G986BXXSNHYB1", false}, // the S20+ is not an S20 Ultra
+		{"SM-G980F", "G980FXXSNHYB7", false},
+	} {
+		if err := verifyIdentity(c, tc.model, tc.firmware, "z3s", "exynos990", "0", "unlocked"); (err == nil) != tc.ok {
+			t.Errorf("%+v: %v", tc, err)
+		}
+		if siblingOnly(c, tc.model) {
+			t.Errorf("%s has no sibling in an S20 Ultra package", tc.model)
+		}
+	}
+	if !y2sFamily("z3s") || !y2sFamily("y2s") || y2sFamily("x1slte") {
+		t.Fatal("y2sFamily")
+	}
+}

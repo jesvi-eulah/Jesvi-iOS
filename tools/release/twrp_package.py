@@ -13,7 +13,7 @@ import tempfile
 import zipfile
 from cache import digest, fingerprint
 from go_toolchain import ensure, environment
-from manage import ROOT, profile
+from manage import ROOT, profile, Y2S_FAMILY
 
 META = {'installer.json', 'README.txt',
         'META-INF/com/google/android/update-binary', 'META-INF/com/google/android/updater-script'}
@@ -132,8 +132,8 @@ def package(bundle, output, mode='fresh', experimental=False):
     # y2s is a first-install target only: this ZIP always erases and initializes
     # userdata. Once iOS is running, updates come from the loader's Log access
     # menu (./y2s.sh rflash / tflash), never from a second TWRP flash.
-    if device['id'] == 'y2s' and mode != 'fresh':
-        raise ValueError('y2s TWRP ZIP is first-install only; pass --mode fresh; use the loader for updates')
+    if device['id'] in Y2S_FAMILY and mode != 'fresh':
+        raise ValueError(f"{device['id']} TWRP ZIP is first-install only; pass --mode fresh; use the loader for updates")
     avb, avb_key = ROOT / 'inputs/tools/avbtool.py', ROOT / 'inputs/tools/testkey_rsa4096.pem'
     for tool in (avb, avb_key):
         if tool.is_symlink() or not tool.is_file():
@@ -151,7 +151,7 @@ def package(bundle, output, mode='fresh', experimental=False):
     config = device_config(device, 'install', mode, experimental)
     config.update(files=manifest['files'], kit_sha256=digest(kit), kit_bytes=kit.stat().st_size,
                   data_bytes=__import__('targets').data_bytes(device['partitions']['userdata']))
-    if device['id'] == 'y2s':
+    if device['id'] in Y2S_FAMILY:
         readme = (f'Jesvi iOS for {device["name"]} ({device["id"]}). Mode: fresh. Writes enabled: {experimental}.\n'
                   'HARDWARE QUALIFICATION PENDING. No partition-table changes, no automatic reboot.\n'
                   'FIRST INSTALL ONLY, from TWRP: works from Android or over an old Jesvi iOS install,\n'
@@ -161,7 +161,7 @@ def package(bundle, output, mode='fresh', experimental=False):
                   'Android: the installer unmounts /data and super mappings itself after you confirm;\n'
                   'if a mount is busy, choose Mount > Disable MTP in TWRP and flash again.\n'
                   'Android\'s partition map is saved in super\'s free tail for Jesvi-iOS-Restore.\n'
-                  'Installation proceeds after 45 seconds unless cancelled. Volume Down/Power cancels.\n'
+                  'Installation proceeds after 10 seconds unless cancelled. Volume Up starts now, Volume Down/Power cancels.\n'
                   'TWRP is replaced by the iOS runtime. Updates are NEVER flashed with Odin or TWRP:\n'
                   'boot the loader, choose Log access (USB) and run ./y2s.sh rflash or ./y2s.sh tflash.\n'
                   'Do not flash this ZIP again over an existing Jesvi iOS installation.\n'
@@ -177,7 +177,7 @@ def package(bundle, output, mode='fresh', experimental=False):
                   'if a mount is busy, choose Mount > Disable MTP in TWRP and flash again.\n'
                   'Android\'s partition map is saved in super\'s free tail for Jesvi-iOS-Restore.\n'
                   'Existing iOS data is preserved in update/choose mode. Fresh install destroys userdata.\n'
-                  'Installation proceeds after 45 seconds unless cancelled. Volume Down/Power cancels.\n'
+                  'Installation proceeds after 10 seconds unless cancelled. Volume Up starts now, Volume Down/Power cancels.\n'
                   'TWRP is replaced by the iOS runtime. To update later, flash TWRP with Odin first.\n'
                   'Back to Android: flash Jesvi-iOS-Restore, Format Data, then any Android ROM ZIP.\n'
                   'This is not an authenticated public release. See docs/release/twrp.md and rollback.md.\n')

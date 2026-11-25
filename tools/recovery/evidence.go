@@ -31,7 +31,7 @@ func mountedDevices(text string) (map[string]bool, error) {
 	return mounted, nil
 }
 
-var regionalModel = regexp.MustCompile(`^SM-(G980|G981|G985|G986)[A-Z](/DS)?$`)
+var regionalModel = regexp.MustCompile(`^SM-(G980|G981|G985|G986|G988)[A-Z](/DS)?$`)
 
 // Only the model prefix identifies hardware. Firmware revision length and formatting vary.
 func firmwareMatchesModel(model, firmware string) bool {

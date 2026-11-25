@@ -23,7 +23,8 @@ def preflight(output, device='x1slte'):
     for tool in ('7z', 'cc', 'curl', 'tar', 'ldid', 'llvm-ar', 'llvm-ranlib', 'llvm-strip', 'lld-link'):
         if shutil.which(tool) is None:
             errors.append('missing tool: ' + tool)
-    for name in BOARD_INPUTS + (Y2S_BOARD_INPUTS if device == 'y2s' else ()):
+    from manage import Y2S_FAMILY
+    for name in BOARD_INPUTS + (Y2S_BOARD_INPUTS if device in Y2S_FAMILY else ()):
         p = ROOT / name
         if p.is_symlink() or not p.is_file():
             errors.append('provision reviewed board/tool input: ' + name)

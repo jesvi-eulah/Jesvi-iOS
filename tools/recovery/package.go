@@ -91,8 +91,8 @@ func checkConfig(c Config) error {
 		// y2s's TWRP ZIP is first-install only. Updates are flashed from the
 		// loader's Log access menu; accepting a y2s "update" here would let a
 		// stale TWRP ZIP overwrite a booted iOS installation.
-		if c.Device == "y2s" && c.Mode != "fresh" {
-			return errors.New("y2s supports first install only; use the loader for updates")
+		if y2sFamily(c.Device) && c.Mode != "fresh" {
+			return errors.New(c.Device + " supports first install only; use the loader for updates")
 		}
 		if len(c.Files) != 3 || c.KitBytes <= 0 {
 			return errors.New("install package needs system, recovery, boot and HFS kit")
@@ -134,7 +134,7 @@ func checkConfig(c Config) error {
 		return errors.New("iOS data size must be 4096-aligned, at least 16 GB and inside userdata")
 	}
 	maxSystem := int64(4 << 30)
-	if c.Device == "y2s" {
+	if y2sFamily(c.Device) {
 		maxSystem = y2sSystemMax
 	}
 	if c.SystemMaxBytes < 64<<20 || c.SystemMaxBytes > maxSystem || c.SystemMaxBytes > sup {
@@ -493,3 +493,7 @@ func hasModel(list []string, value string) bool {
 	}
 	return false
 }
+
+// y2sFamily: boards on the S20+ image path (y2s, and z3s, the S20 Ultra): same super layout,
+// first-install-only TWRP ZIP, updates through the loader.
+func y2sFamily(device string) bool { return device == "y2s" || device == "z3s" }

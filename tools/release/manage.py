@@ -12,6 +12,10 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 EXPERIMENTAL_KERNEL_TARGETS = ('y2s', 'z3s')
+# Boards built on the S20+ (y2s) image path: the y2s kernel, Mu-y2s UEFI and stock DTBH,
+# with their own board config, boot line and TWRP ZIP. First-install ZIPs only.
+Y2S_FAMILY = ('y2s', 'z3s')
+IMAGE_TARGETS = ('x1slte',) + Y2S_FAMILY
 
 
 def profile(name):
@@ -222,7 +226,7 @@ def main():
             print(f'{a.device}: building a shared kernel for experimental bring-up', flush=True)
         run('bash', 'ci/build-kernel.sh', str(a.jobs), a.device)
     elif a.command == 'images':
-        if a.device not in ('x1slte', 'y2s') or not a.development:
+        if a.device not in IMAGE_TARGETS or not a.development:
             raise ValueError('full images are private development candidates only; pass --development')
         from private_inputs import verify, Y2S_BOARD_INPUTS
         from images import hfs_kit
@@ -233,9 +237,9 @@ def main():
         userdata = profile(a.device)['partitions']['userdata']
         data = targets.data_bytes(userdata)
         hfs_kit(targets.kit_path(ROOT, data, userdata), data)
-        if a.device == 'y2s':
+        if a.device in Y2S_FAMILY:
             if data != userdata:
-                raise ValueError('y2s requires IOS_DATA_GB=all for the current loader')
+                raise ValueError(f'{a.device} requires IOS_DATA_GB=all for the current loader')
             if any(not (ROOT / path).is_file() for path in Y2S_BOARD_INPUTS):
                 raise ValueError('missing y2s Mu image or stock DTBH')
         else:
@@ -243,7 +247,7 @@ def main():
         env = dict(os.environ, SHARE='1', REST='1', IOS_INPUT_DIR='../sysimage', REQUIRE_SOURCE='1', JESVI_TARGET=a.device)
         env['HACKIOS_IMAGE_CACHE'] = str(Path(env.get('HACKIOS_IMAGE_CACHE', ROOT / '.cache/private-images')).resolve())
         # Build locally, never export xnu-src over the source under review.
-        run('bash', 'ci/build-kernel.sh', '4', a.device)
+        run('bash', 'ci/build-kernel.sh', '4', 'y2s' if a.device in Y2S_FAMILY else a.device)
         if a.device == 'x1slte':
             shutil.copyfile(ROOT / 'out/kernel/mach.x1slte', ROOT / 'out/mach.x1slte')
         run('bash', 'ci/build-openh264.sh', env=env)
@@ -254,9 +258,9 @@ def main():
                 raise ValueError(f'image builder produced no {name}')
         run('./build.sh', 'identity', env=env)
         run('python3', 'tools/release/loader_font.py', env=env)
-        if a.device == 'y2s':
+        if a.device in Y2S_FAMILY:
             run('python3', '-I', 'tools/bootlogo/mkbootlogo.py', env=env)
-            run('bash', 'tools/y2s/build-image.sh', env=dict(env, UEFI=Y2S_BOARD_INPUTS[0]))
+            run('bash', 'tools/y2s/build-image.sh', env=dict(env, UEFI=Y2S_BOARD_INPUTS[0], BOARD=a.device))
             verify()
             return 0
         run('bash', 'x1slte.sh', 'embed', env=env)

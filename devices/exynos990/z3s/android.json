@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "source": "copied from y2s (SM-G986B stock LP metadata): ExtremeROM target/z3s builds the S20 Ultra with the same super size 9437184000 and group_basic 9432989696; re-measure from a z3s lpdump when a tester reports",
+  "android_stash_offset": 9435086848,
+  "android_super": {
+    "metadata_max_size": 65536,
+    "metadata_slots": 2,
+    "logical_block_size": 4096,
+    "alignment": 1048576,
+    "first_logical_sector": 2048,
+    "groups": [
+      {
+        "name": "group_basic",
+        "max_size": 9432989696
+      }
+    ]
+  }
+}

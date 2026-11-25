@@ -22,18 +22,23 @@ cd "$(dirname "$0")/../.."
 
 die() { echo "build-image.sh: $*" >&2; exit 1; }
 # shellcheck disable=SC1091
-. common/devices/y2s.conf
+# BOARD: y2s (S20+) or another board on the same image path (z3s, S20 Ultra): it shares the
+# y2s kernel, Mu-y2s UEFI and DTBH, and has its own board config, boot line and outputs.
+BOARD=${BOARD:-y2s}
+case $BOARD in y2s|z3s) ;; *) die "BOARD must be y2s or z3s" ;; esac
+. "common/devices/$BOARD.conf"
 
-EMBED=out/y2s/y2s-embed.img
-PAYLOAD=out/y2s/y2s-payload.bin
-BOOT=out/y2s/y2s-boot.img
-RECOVERY=out/y2s/y2s-recovery.img
+O=out/$BOARD
+EMBED=$O/$BOARD-embed.img
+PAYLOAD=$O/$BOARD-payload.bin
+BOOT=$O/$BOARD-boot.img
+RECOVERY=$O/$BOARD-recovery.img
 UEFI=${UEFI:-out/y2s/Mu-y2s.img}
 KERNEL=${KERNEL:-out/experimental/y2s/mach.y2s}
 ROOT=${ROOT:-userland/root.apfs}
 PAYLOAD_AT=$((0x100870))
 PAYLOAD_MAX=$((0x80000))
-BOOTLINE_FILE=${BOOTLINE_FILE:-devices/exynos990/y2s/y2s.cmdline}
+BOOTLINE_FILE=${BOOTLINE_FILE:-devices/exynos990/$BOARD/$BOARD.cmdline}
 AVB=${AVBTOOL:-inputs/tools/avbtool.py}
 KEY=${AVB_TEST_KEY:-inputs/tools/testkey_rsa4096.pem}
 
@@ -47,7 +52,7 @@ if [ "${ROOT_OK:-0}" != 1 ] && ! { LC_ALL=C grep -q -a 'libOSMesa' "$ROOT" &&
 	LC_ALL=C grep -q -a 'libredwood-gl.dylib' "$ROOT"; }; then
 	die "$ROOT has no GPU layer (libOSMesa / libredwood-gl.dylib); rebuild it with userland/build-gpu-y2s.sh (ROOT_OK=1 to override)"
 fi
-mkdir -p out/y2s
+mkdir -p "$O"
 cp "$UEFI" "$EMBED"
 
 printf -v ROOT_OFF_HEX '0x%x' "$((ROOT_SUPER_OFF))"
@@ -73,7 +78,7 @@ env GIC_V2=1 CELLULAR_RESERVE_CP="${CELLULAR_RESERVE_CP-1}" \
 	USERDATA_WIN_OFF=0x0 USERDATA_WIN_LEN="$UD_LEN_HEX" \
 	Y2S_LOG_FLASH=1 \
 	xnuloader/build.sh >/dev/null
-cp xnuloader/loader.efi out/y2s/loader-y2s.efi
+cp xnuloader/loader.efi "$O/loader-$BOARD.efi"
 
 rsize=$(printf '%x' "$(wc -c < "$ROOT")")
 python3 xnuloader/mkpayload.py -o "$PAYLOAD" loader.efi=xnuloader/loader.efi \
@@ -147,7 +152,7 @@ PY
 
 # sboot needs an AVB hash footer even with verification disabled. The hash covers
 # only the boot head; the kernel, root.apfs and log are outside the first 16 MiB.
-python3 - "$RECOVERY" out/y2s/.avb-head.img <<'PY'
+python3 - "$RECOVERY" "$O/.avb-head.img" <<'PY'
 import struct, sys
 d = open(sys.argv[1], 'rb').read()
 page = struct.unpack_from('<I', d, 36)[0]
@@ -159,12 +164,12 @@ n = (n + 4095) // 4096 * 4096
 assert n < 0x1000000
 open(sys.argv[2], 'wb').write(d[:n])
 PY
-python3 -I "$AVB" add_hash_footer --image out/y2s/.avb-head.img \
+python3 -I "$AVB" add_hash_footer --image "$O/.avb-head.img" \
 	--partition_size "$RECOVERY_PARTITION_SIZE" --partition_name recovery \
 	--algorithm SHA256_RSA4096 --key "$KEY" --rollback_index 1
 # Put the kernel and root.apfs back, but leave the AVB footer at the partition
 # end alone: copying from 0x2000000 to EOF would overwrite the footer.
-python3 - out/y2s/.avb-head.img "$RECOVERY" "$KERNEL" "$ROOT" <<'PY'
+python3 - "$O/.avb-head.img" "$RECOVERY" "$KERNEL" "$ROOT" <<'PY'
 import sys
 out_path, full_path, kernel_path, root_path = sys.argv[1:5]
 h = bytearray(open(out_path, 'rb').read())
@@ -177,7 +182,7 @@ h[0x3400000:0x3400000 + len(root)] = root
 assert h[-64:-60] == b'AVBf', 'AVB footer was overwritten'
 open(full_path, 'wb').write(h)
 PY
-rm -f out/y2s/.avb-head.img
+rm -f "$O/.avb-head.img"
 
 echo "build-image: $PAYLOAD"
 echo "build-image: $EMBED"

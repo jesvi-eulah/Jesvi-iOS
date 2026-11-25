@@ -23,7 +23,8 @@ def verify(bundle):
     d = profile(m['device'])
     # Only boards with a measured layout and a complete image validator may be
     # packaged. y2s's validator uses the same checks against stock geometry.
-    if d['id'] not in ('x1slte', 'y2s'):
+    from manage import IMAGE_TARGETS
+    if d['id'] not in IMAGE_TARGETS:
         raise ValueError('no image validator for this board')
     if digest(ROOT / f'devices/exynos990/{d["id"]}/device.json') != m['device_profile_sha256']:
         raise ValueError('device profile does not match this candidate')

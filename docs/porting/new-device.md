@@ -20,7 +20,7 @@ not supported yet, you only add what is unique to it.
 | y2s | Galaxy S20+ 5G (SM-G986B) | development, boot-tested, CI builds |
 | x1s | Galaxy S20 5G (SM-G981B) | unmaintained, inherits x1slte |
 | y2slte | Galaxy S20+ (SM-G985F) | unmaintained, inherits y2s |
-| z3s | Galaxy S20 Ultra (SM-G988B) | unmaintained |
+| z3s | Galaxy S20 Ultra (SM-G988B) | development, first-boot profile, CI builds ([notes](../devices/z3s.md)) |
 | c1s | Galaxy Note20 (SM-N980F/N981B) | unmaintained |
 | c2s | Galaxy Note20 Ultra (SM-N985F/N986B) | unmaintained |
 | r8s | Galaxy S20 FE (SM-G780F) | unmaintained |
