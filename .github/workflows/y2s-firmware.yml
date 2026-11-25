@@ -4,14 +4,8 @@ on:
   workflow_call:
     # The caller passes these with `secrets: inherit`; declaring them here keeps
     # the handoff explicit and makes a missing secret a visible configuration
-    # problem instead of an empty password in samloader/age.
+    # problem instead of an empty age key.
     secrets:
-      Y2S_FUS_IMEI:
-        description: IMEI used with Samsung's firmware service (optional when a stock ZIP URL is set)
-        required: false
-      Y2S_STOCK_FIRMWARE_URL:
-        description: HTTPS URL of the verified SM-G986B XSG stock firmware ZIP
-        required: false
       HOSTED_BOARD_INPUTS_AGE_KEY:
         description: age identity used to hand Mu-y2s.img and the stock DTBH to the macOS build
         required: false
@@ -27,53 +21,26 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
-      - name: Fetch SM-G986B stock firmware
-        env:
-          DEVICE_IMEI: ${{ secrets.Y2S_FUS_IMEI }}
-          STOCK_FIRMWARE_URL: ${{ secrets.Y2S_STOCK_FIRMWARE_URL }}
-        run: |
-          set -euo pipefail
-          cd "$RUNNER_TEMP"
-          mkdir stock
-          if [[ -n "$STOCK_FIRMWARE_URL" ]]; then
-            curl --fail --silent --location --proto '=https' --proto-redir '=https' \
-              --retry 3 --output stock/firmware.zip -- "$STOCK_FIRMWARE_URL" ||
-              { echo "::error::Could not download the stock ZIP from Y2S_STOCK_FIRMWARE_URL."; exit 1; }
-            printf '%s  %s\n' '8936bf40d04d85f556e7c4f35a070384' stock/firmware.zip | md5sum --check
-            exit 0
-          fi
-          if [[ ! "$DEVICE_IMEI" =~ ^[0-9]{15}$ ]]; then
-            echo "::error::Set Y2S_FUS_IMEI or Y2S_STOCK_FIRMWARE_URL in private-images."
-            exit 1
-          fi
-          # Samsung switched FUS to the 2026 "Smart" scheme. The pinned client
-          # returns an empty nonce; carry the reviewed protocol/key patch with
-          # the checkout so the download works on a fresh hosted runner.
-          git clone --filter=blob:none https://github.com/martinetd/samloader.git "$RUNNER_TEMP/samloader-src"
-          git -C "$RUNNER_TEMP/samloader-src" checkout --detach 0d724ce27b88915f61111313ce406a12c5c25a4a
-          git -C "$RUNNER_TEMP/samloader-src" apply "$GITHUB_WORKSPACE/tools/y2s/samloader-2026-fus.patch"
-          python3 -m venv "$RUNNER_TEMP/samloader"
-          "$RUNNER_TEMP/samloader/bin/pip" install "$RUNNER_TEMP/samloader-src"
-          cmd=("$RUNNER_TEMP/samloader/bin/samloader" -m SM-G986B -r XSG -i "$DEVICE_IMEI")
-          version=G986BXXSNHYB1/G986BOXBNHYB1/G986BXXSNHYB1/G986BXXSNHYB1
-          "${cmd[@]}" download -v "$version" -O stock
-          shopt -s nullglob
-          inputs=(stock/*.enc[24])
-          [[ ${#inputs[@]} == 1 ]]
-          file=${inputs[0]}
-          "${cmd[@]}" decrypt -v "$version" -V "${file: -1}" -i "$file" -o stock/firmware.zip
-          rm -- "$file"
-      - name: Extract stock board trees
+      - name: Fetch the Exynos 990 boot device tree
+        # The boot-image DTB is the generic Exynos 990 tree shared by the S20
+        # and S20+ (board specifics live in dtbo). It is byte-identical to the
+        # one in the S20's stock boot image and to the y2s.dtb shipped by
+        # stormtroopxyz/y2sios, so no Samsung firmware download (or IMEI) is
+        # needed. Pinned by commit and SHA-256.
         run: |
           set -euo pipefail
           sudo apt-get update -qq
-          sudo apt-get install -y age lz4
-          cd "$RUNNER_TEMP/stock"
-          mapfile -t ap < <(unzip -Z1 firmware.zip | grep -E '(^|/)AP_G986BXXSNHYB1[^/]*\.tar\.md5$')
-          [[ ${#ap[@]} == 1 ]]
-          unzip -p firmware.zip "${ap[0]}" | tar -xO -f - boot.img.lz4 | lz4 -dc > boot.img
-          python3 "$GITHUB_WORKSPACE/tools/y2s/stock-info.py" boot-trees boot.img trees
-          rm -- firmware.zip boot.img
+          sudo apt-get install -y age
+          trees="$RUNNER_TEMP/stock/trees"
+          mkdir -p "$trees"
+          curl --fail --silent --show-error --location --proto '=https' --retry 3 \
+            --output "$trees/stock-boot-dtb.img" \
+            https://raw.githubusercontent.com/stormtroopxyz/y2sios/68fe2e922a52917ed851c1499e394fe5436365b5/uefi/Resources/DTBs/y2s.dtb
+          echo 'ffcad4d6011d108329f801abb9ca9ee48cffd6ccfc2704ea47d5e8f24507e22b  '"$trees/stock-boot-dtb.img" | sha256sum --check
+          # Stock DTBH = 64-byte Samsung table header + the single tree.
+          { printf 'd7b7ab1e000533cc0000002000000020000000010000002000000800000000000005338c00000040000000000000000000000000ff0000000000000000000000' | xxd -r -p
+            cat "$trees/stock-boot-dtb.img"; } > "$trees/stock-boot-dtbh.img"
+          echo '9596875233beaf42706c3427aded6b981f4844e4f05b75ddd5f390c70c51b276  '"$trees/stock-boot-dtbh.img" | sha256sum --check
       - name: Build Mu-Silicium for y2s
         run: |
           set -euo pipefail
