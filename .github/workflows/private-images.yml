@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       target:
-        description: 'Board: x1slte = Galaxy S20 ZIP (installs G980F, checks G981B), y2s = Galaxy S20+ ZIP (installs G986B, checks G985F)'
+        description: 'Board: x1slte = Galaxy S20 ZIP (G980F + G981B), y2s = Galaxy S20+ ZIP (G986B + G985F)'
         type: choice
         options: [x1slte, y2s]
         default: x1slte
@@ -22,7 +22,7 @@ on:
         options: [from-release.conf, choose, fresh, update]
         default: from-release.conf
       writes:
-        description: Override WRITES (installs proceed after 45 seconds; fresh erases userdata)
+        description: Override WRITES (installs proceed after 10 seconds; fresh erases userdata)
         type: choice
         options: [from-release.conf, 'true', 'false']
         default: from-release.conf

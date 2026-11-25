@@ -4,7 +4,7 @@ package main
 // Approval from the computer (A, 2026-11-20). tools/install/twrp-install.sh asks the person on the computer first
 // ("yes" for an update that keeps the data, "ERASE" for anything that erases it), then leaves one line in TWRP's
 // RAM: "<sha256 of this package's installer.json> keep|erase". With it the installer needs no key press; without
-// it (TWRP's own Install button) the physical Volume Up hold stays. The approval names this exact package, covers
+// it (TWRP's own Install button) the physical Volume Up press stays. The approval names this exact package, covers
 // no more than what was typed, and is removed when the installer ends (TWRP's /tmp is gone at reboot anyway).
 
 import (

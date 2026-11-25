@@ -6,14 +6,12 @@ import (
 	"time"
 )
 
+// installWindow: how long a write-enabled install waits for Volume Down/Power before it proceeds.
+const installWindow = 10 * time.Second
+
+// waitForConfirmation: a new Volume Up press confirms, Volume Down or Power cancels.
+// Only key-down events count (value 1), so a key held from before the prompt does not confirm.
 func waitForConfirmation(events <-chan [2]int, timeout <-chan time.Time, autoProceed bool, log func(string)) error {
-	var hold *time.Timer
-	var held <-chan time.Time
-	defer func() {
-		if hold != nil {
-			hold.Stop()
-		}
-	}()
 	for {
 		select {
 		case <-timeout:
@@ -29,7 +27,7 @@ func waitForConfirmation(events <-chan [2]int, timeout <-chan time.Time, autoPro
 					}
 				default:
 					if autoProceed {
-						log("45-second cancel window expired; proceeding with installation.")
+						log("10-second cancel window expired; proceeding with installation.")
 						return nil
 					}
 					return errors.New("physical confirmation timed out; no writes authorized")
@@ -42,21 +40,9 @@ func waitForConfirmation(events <-chan [2]int, timeout <-chan time.Time, autoPro
 			if (ev[0] == 114 || ev[0] == 116) && ev[1] == 1 {
 				return errors.New("installation cancelled")
 			}
-			if ev[0] == 115 {
-				if ev[1] == 1 {
-					if hold != nil {
-						hold.Stop()
-					}
-					hold = time.NewTimer(3 * time.Second)
-					held = hold.C
-				}
-				if ev[1] == 0 && hold != nil {
-					hold.Stop()
-					held = nil
-				}
+			if ev[0] == 115 && ev[1] == 1 {
+				return nil
 			}
-		case <-held:
-			return nil
 		}
 	}
 }

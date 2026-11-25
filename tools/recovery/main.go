@@ -122,10 +122,9 @@ func run() error {
 		return e
 	}
 	defer d.Close()
-	if d.siblingOnly && b.Config.AllowWrites {
-		b.Config.AllowWrites = false
-		log("This package was measured on " + strings.Join(b.Config.Models, "/") + "; your phone is its sibling model.")
-		log("Running the read-only check: nothing will be written. Share this log to get your model supported.")
+	if d.sibling {
+		log("NOTE: this package was measured on " + strings.Join(b.Config.Models, "/") + "; your phone is the same board with the other modem.")
+		log("Every partition size matched exactly. Untested model: if iOS does not start, flash Jesvi-iOS-Restore.")
 	}
 	log("Exact device, bootloader, partition sizes and battery checks passed.")
 	if batteryTenthsC > 450 {

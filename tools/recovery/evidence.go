@@ -55,14 +55,14 @@ func regionalIdentity(c Config, model, firmware string) bool {
 
 // One board, two modems (like ExtremeROM's x1s and y2s targets): the S20 LTE/5G and
 // S20+ LTE/5G share everything but the modem and RAM. A package built for one model
-// accepts its sibling, but only ever as a read-only check: its partitions are unmeasured.
+// accepts its sibling; openRecovery still requires every partition to have the exact measured size.
 func siblingPair(qualified, actual string) bool {
 	return (qualified == "G980" && actual == "G981") || (qualified == "G981" && actual == "G980") ||
 		(qualified == "G986" && actual == "G985") || (qualified == "G985" && actual == "G986")
 }
 
-// siblingOnly reports a phone accepted only as the sibling of a qualified model:
-// no exact or regional match of its own model prefix. Such a phone never gets writes.
+// siblingOnly reports a phone accepted only as the sibling of a qualified model
+// (no exact or regional match of its own model prefix): the installer warns that it is untested.
 func siblingOnly(c Config, model string) bool {
 	actual := regionalModel.FindStringSubmatch(model)
 	if actual == nil || hasModel(c.Models, model) {

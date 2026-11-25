@@ -34,7 +34,7 @@ App Store downloads, iMessage and FaceTime remain unavailable. [Device configura
 
 1. Match the **model number** in the [device list](#tested-devices) to the target in the ZIP name. Get the package and checksum from [GitHub Releases](https://github.com/jesvi-eulah/Jesvi-iOS/releases). For a development build, extract the artifact from a successful [TWRP workflow run](https://github.com/jesvi-eulah/Jesvi-iOS/actions/workflows/private-images.yml).
 2. Verify the installer against its supplied SHA-256 checksum. Keep a backup off the phone. A ZIP ending in `_preflight.zip` runs checks only.
-3. Choose the procedure for your phone below. **Fresh install erases existing Android or iOS userdata.** Write-enabled installers built from current main start after a 45-second cancel window when launched from TWRP's Install screen. Press Volume Down or Power during that window to cancel.
+3. Choose the procedure for your phone below. **Fresh install erases existing Android or iOS userdata.** Write-enabled installers built from current main start after a 10-second cancel window when launched from TWRP's Install screen. Press Volume Down or Power during that window to cancel.
 
 **S20 LTE:** Use TWRP 3.7.1 or newer. With the phone connected directly to your computer, run one of the following commands, substituting the actual path to the verified ZIP. A preserving update requires an existing iOS data volume of the matching size.
 
@@ -48,7 +48,7 @@ tools/install/twrp-install.sh /path/to/update_x1s.zip
 
 The computer helper asks for approval before copying an install ZIP.
 
-**Back to Android:** Use the Restore ZIP for your device. It checks the phone, then waits for a three-second **Volume Up** hold before erasing iOS data. Press **Volume Down** or **Power**, or let the prompt time out, to stop after the checks. The Restore code is shared across devices, and each ZIP contains the partition layout for its own target. [Install guide](docs/release/install.md) · [Rollback guide](docs/release/rollback.md)
+**Back to Android:** Use the Restore ZIP for your device. It checks the phone, then waits for a **Volume Up** press before erasing iOS data. Press **Volume Down** or **Power**, or let the prompt time out, to stop after the checks. The Restore code is shared across devices, and each ZIP contains the partition layout for its own target. [Install guide](docs/release/install.md) · [Rollback guide](docs/release/rollback.md)
 
 **S20+ 5G:** Use the y2s fresh-install ZIP for initial setup. To update an existing installation, select **Log access (USB)** in the loader and follow the y2s guide. `./y2s.sh rflash` updates boot and recovery, including the root image. `./y2s.sh tflash` also updates the system image. Reinstalling the TWRP ZIP erases userdata. [S20+ setup and update instructions](tools/y2s/README.md)
 
@@ -88,11 +88,11 @@ For S20+ 5G, use the [y2s build guide](tools/y2s/README.md) to prepare the board
 ### x1s · Galaxy S20
 
 - **SM-G980F** (LTE, `x1slte`) — **Update tested.** The phone booted with user data intact after a TWRP update on `G980FXXSNHYB7`. Use the LTE fresh-install or update ZIP. [Test record](docs/release/qualification-x1slte.md) · [Install guide](docs/release/install.md)
-- **SM-G981B** (5G) — **Check only.** Flash the same `x1s` ZIP: on a G981B it runs the read-only check and writes nothing. The 5G model has a different modem and RAM configuration.
+- **SM-G981B** (5G) — **Untested.** Flash the same `x1s` ZIP: it installs when every partition size matches the G980F exactly, and stops with the mismatching partition otherwise. The 5G model has a different modem and RAM configuration.
 
 ### y2s · Galaxy S20+
 
-- **SM-G985F** (LTE) — **Check only.** Flash the same `y2s` ZIP: on a G985F it runs the read-only check and writes nothing. The LTE boot chain and partition layout still need measurement.
+- **SM-G985F** (LTE) — **Untested.** Flash the same `y2s` ZIP: it installs when every partition size matches the G986B exactly, and stops with the mismatching partition otherwise. The LTE boot chain and partition layout still need measurement.
 - **SM-G986B** (5G) — **Boot-tested.** The board and partitions were measured on `G986BXXSNHYB1`. The development port uses TWRP for fresh installs and the USB loader for updates. Fresh-install and peripheral testing is pending. [Board evidence](docs/release/device-evidence-y2s.md) · [Install guide](tools/y2s/README.md)
 
 For regional G980 and G986 devices, recovery accepts firmware revisions that identify the phone’s model and warns on untested revisions. It also checks the Exynos SoC, bootloader unlock state and partition sizes. These builds support Exynos hardware only.

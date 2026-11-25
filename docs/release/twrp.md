@@ -14,7 +14,7 @@ layout.** The installer uses the existing physical partitions:
 | Existing partition | Installation use |
 |---|---|
 | `super` | Writes system APFS at byte 0, at most 4 GiB; saves Android's original 1 MiB partition map in the last 2 MiB (for the restore ZIP); leaves the rest of the tail alone |
-| `userdata` | HFSX persistent data; initialized in fresh mode after its 45-second cancel window |
+| `userdata` | HFSX persistent data; initialized in fresh mode after its 10-second cancel window |
 | `recovery` | Full runtime image, replacing TWRP |
 | `boot` | Matching Android/Samsung boot head, committed last |
 
@@ -51,7 +51,7 @@ The ZIP itself must not be on internal storage: microSD, USB-OTG or `adb sideloa
 
 Run the Restore ZIP for your device in TWRP. The shared Restore code uses the
 target's model checks and partition layout. It runs the checks first, then
-requires a three-second **Volume Up** hold before writing. **Volume Down**,
+requires a **Volume Up** press before writing. **Volume Down**,
 **Power**, or a 45-second timeout cancels.
 
 Restore refuses a `super` that still holds Android partitions or holds neither
@@ -75,7 +75,7 @@ From an already built/verified candidate:
 ./build.sh twrp --bundle dist/local-validation \
   --output dist/s20-preflight.zip
 
-# Enable the experimental writer: fresh by default, proceeds after 45 seconds unless cancelled.
+# Enable the experimental writer: fresh by default, proceeds after 10 seconds unless cancelled.
 ./build.sh twrp --bundle dist/local-validation \
   --output dist/s20-experimental.zip --experimental
 ```
@@ -126,10 +126,10 @@ path and explicit device/reboot authorization; this ZIP builder does not do it.
    archive location and battery checks. Missing/ambiguous evidence is a failure;
    record it and fix the profile/backend through review rather than bypassing it.
 5. Only in the approved hardware trial, select the experimental ZIP. The UI shows
-   the planned data policy and a **45-second cancel window**. Installation, including
+   the planned data policy and a **10-second cancel window**. Installation, including
    userdata erasure in fresh mode, proceeds automatically when it expires. Volume
-   Down/Power cancels; hold Volume Up for three seconds to proceed early. Restore
-   still requires an explicit Volume Up hold and cancels on timeout. Read-only
+   Down/Power cancels; press Volume Up to proceed straight away. Restore
+   still requires an explicit Volume Up press and cancels on timeout. Read-only
    preflight ZIPs never enter the cancel window or write partitions.
 6. Copy `/tmp/jesvi-install.log` and TWRP's log to the host before leaving recovery.
    The installer never requests a reboot. A failed installation is not success;
@@ -145,7 +145,7 @@ resolved as part of release qualification; do not label this a signed release.
 ## Fresh versus update policy
 
 Default `--mode fresh` erases existing userdata, including existing iOS data, after
-the 45-second cancel window. Use `--mode update` for a preserving update.
+the 10-second cancel window. Use `--mode update` for a preserving update.
 
 Optional `--mode choose` inspects the existing data header:
 
@@ -156,7 +156,7 @@ Optional `--mode choose` inspects the existing data header:
 - A non-HFS data partition selects the **fresh-install cancel window**.
 
 `--mode update` refuses missing/damaged data. `--mode fresh` explicitly selects the
-fresh flow and destroys existing data after the cancel window (or an early Volume Up hold). Fresh mode
+fresh flow and destroys existing data after the cancel window (or an early Volume Up press). Fresh mode
 writes and checks the trusted HFS kit's metadata/data/zero extents, including both
 volume headers. It is **not a secure erase of every previous free block**. Normal
 boot never formats data and still halts on an unavailable persistent volume.

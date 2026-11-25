@@ -29,11 +29,12 @@ type linuxDevice struct {
 	dataLocked bool
 	parts      map[string]partition
 	writes     map[string]*os.File
-	// siblingOnly: the sibling model of the one this package was measured on (G981B in
-	// an S20 package, G985F in an S20+ package). Checks only; OpenWritable refuses.
-	siblingOnly bool
-	lock        *os.File
-	archive     *os.File
+	// sibling: the LTE/5G sibling of the model this package was measured on (G981B in an
+	// S20 package, G985F in an S20+ package). It installs like the measured model, because
+	// openRecovery only gets here when every destination partition has the exact measured size.
+	sibling bool
+	lock    *os.File
+	archive *os.File
 }
 
 func deviceID(dev uint64) string {
@@ -85,7 +86,7 @@ func openRecovery(c Config, archive *os.File, log func(string)) (*linuxDevice, e
 		return nil, errors.New("another installer owns storage")
 	}
 	d := &linuxDevice{parts: make(map[string]partition), writes: make(map[string]*os.File), lock: lock, archive: archive,
-		siblingOnly: siblingOnly(c, recoveryModel(prop))}
+		sibling: siblingOnly(c, recoveryModel(prop))}
 	good := false
 	defer func() {
 		if !good {
@@ -218,9 +219,6 @@ func (d *linuxDevice) CheckSafe() error {
 	return nil
 }
 func (d *linuxDevice) OpenWritable(name string) (Target, error) {
-	if d.siblingOnly {
-		return nil, errors.New("sibling model: this package only checks your phone, it never writes to it")
-	}
 	p, ok := d.parts[name]
 	if !ok {
 		return nil, errors.New("protected/unknown partition destination")
@@ -329,15 +327,15 @@ func warmPause(d time.Duration) error {
 	}
 }
 
-// A new physical key-down held for three seconds authorizes each destructive mode.
-// Install has a cancel window; restore still requires a new Volume Up hold.
+// A new physical Volume Up press authorizes each destructive mode.
+// Install has a 10 s cancel window; restore needs a Volume Up press within 45 s.
 func confirmKeys(prompt string, log func(string), autoProceed bool) error {
 	log(prompt)
 	if autoProceed {
-		log("INSTALL STARTS AUTOMATICALLY IN 45 SECONDS. Fresh install ERASES ALL USERDATA.")
-		log("Press VOLUME DOWN/POWER to cancel; hold VOLUME UP for 3 seconds to proceed early.")
+		log("INSTALL STARTS AUTOMATICALLY IN 10 SECONDS. Fresh install ERASES ALL USERDATA.")
+		log("Press VOLUME DOWN/POWER to cancel; press VOLUME UP to start now.")
 	} else {
-		log("Hold VOLUME UP for 3 seconds to confirm; VOLUME DOWN/POWER cancels. Timeout: 45 seconds (cancels).")
+		log("Press VOLUME UP to confirm; VOLUME DOWN/POWER cancels. Timeout: 45 seconds (cancels).")
 	}
 	paths, e := filepath.Glob("/dev/input/event*")
 	if e != nil || len(paths) == 0 {
@@ -379,7 +377,12 @@ func confirmKeys(prompt string, log func(string), autoProceed bool) error {
 	if len(files) == 0 {
 		return errors.New("cannot read physical key input")
 	}
-	timeout := time.NewTimer(45 * time.Second)
+	// Install: 10 s cancel window, then proceeds. Restore: 45 s to press Volume Up, then cancels.
+	window := 45 * time.Second
+	if autoProceed {
+		window = installWindow
+	}
+	timeout := time.NewTimer(window)
 	defer timeout.Stop()
 	return waitForConfirmation(events, timeout.C, autoProceed, log)
 }

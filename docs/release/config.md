@@ -16,7 +16,7 @@ JESVI_TARGETS="x1slte y2s" ./build.sh release   # environment override
 | `TARGETS` | Device ids from `devices/exynos990/`. Targets without a measured profile are listed as SKIP |
 | `OUTPUTS` | `twrp` (iOS installer), `preflight` (check-only), `restore` (back to Android), `tar` (images for developers) |
 | `MODE` | `fresh` (default; erases existing userdata), `choose` (preserve valid iOS data, else fresh), `update` (requires existing iOS data) |
-| `WRITES` | `true`: installs proceed after a 45-second cancel window; restore requires a Volume Up hold. `false` (default): every ZIP only checks the phone |
+| `WRITES` | `true`: installs proceed after a 10-second cancel window; restore requires a Volume Up press. `false` (default): every ZIP only checks the phone |
 | `BUNDLE` | Existing verified candidate to package. Empty: full local build first (macOS, private Apple inputs, ~25 GiB free) |
 | `OUT` | Output directory inside `dist/` |
 
@@ -31,8 +31,8 @@ For an explicit first installation, build with:
 A dispatched `target=y2s` build always sets `MODE=fresh`, `IOS_DATA_GB=all` and
 (unless `writes=false` is chosen explicitly) `WRITES=true`, so its artifact is a
 flashable first-install TWRP ZIP rather than a preflight. This erases existing
-userdata after a 45-second cancel window, even on an existing iOS installation.
-Volume Down/Power cancels; holding Volume Up for three seconds proceeds early.
+userdata after a 10-second cancel window, even on an existing iOS installation.
+Volume Down/Power cancels; pressing Volume Up proceeds straight away.
 Read-only preflights do not enter this window. Use off-device
 backups first. `MODE=update` requires matching existing iOS userdata and cannot
 initialize an Android phone. Unmounting or wiping Android cache does not change
