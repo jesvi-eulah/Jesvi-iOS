@@ -69,6 +69,15 @@ def check(conf):
     return conf
 
 
+def package_name(target):
+    """The board name used in ZIP names: one package per board (x1s = S20 LTE + 5G), like ExtremeROM."""
+    from targets import load
+    name = load(target).get('TARGET_PACKAGE_NAME') or target
+    if not re.fullmatch(r'[a-z0-9][a-z0-9-]{0,31}', name):
+        raise ValueError(f'{target}: TARGET_PACKAGE_NAME must be lowercase letters, digits and -')
+    return name
+
+
 def names(conf, target, date=None):
     stamp = date or datetime.date.today().strftime('%Y%m%d')
     base = f'{conf["NAME"]}_{conf["VERSION"]}_{stamp}_{target}'
@@ -90,7 +99,7 @@ def plan(conf):
             continue
         if target == 'y2s' and conf['MODE'] != 'fresh' and set(conf['OUTPUTS']) & {'twrp', 'preflight'}:
             raise ValueError('y2s TWRP requires MODE=fresh; use the loader for updates')
-        n = names(conf, target)
+        n = names(conf, package_name(target))
         for out in dict.fromkeys(conf['OUTPUTS']):
             todo.append((target, out, conf['OUT'] / n[out]))
     return todo, skipped

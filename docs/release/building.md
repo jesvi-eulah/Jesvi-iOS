@@ -16,7 +16,7 @@
    | `inputs/tools/avbtool.py`, `inputs/tools/testkey_rsa4096.pem` | AOSP `external/avb`, pinned commit `76117860` |
    | `inputs/toolchain.json` | this computer's compiler and the inputs' hashes (written by get-inputs.sh) |
 
-4. `make check`, then `make release` → `dist/release/Jesvi-iOS_<version>_<date>_x1slte.zip` and the restore ZIP.
+4. `make check`, then `make release` → `dist/release/Jesvi-iOS_<version>_<date>_x1s.zip` and the restore ZIP.
 5. Install as in the [install guide](install.md).
 
 Settings are in `release.conf` (`./build.sh release --set KEY=value` for one run). Developer loop on a connected

@@ -96,7 +96,7 @@ func TestRegionalFirmwareIdentity(t *testing.T) {
 		{"SM-G986B/DS", "G986BXXU1ABCD", "exynos990", true},
 		{"SM-G986N", "G986NKSU1ABCD", "exynos9830", true},
 		{"SM-G986N", "G986BXXU1ABCD", "exynos990", false},
-		{"SM-G985F", "G985FXXU1ABCD", "exynos990", false},
+		{"SM-G985F", "G985FXXU1ABCD", "exynos990", true}, // sibling: accepted, read-only (siblingOnly)
 		{"SM-G986U", "G986USQU1ABCD", "kona", false},
 	} {
 		err := verifyIdentity(c, tc.model, tc.firmware, "y2s", tc.soc, "0", "unlocked")
@@ -106,15 +106,38 @@ func TestRegionalFirmwareIdentity(t *testing.T) {
 	}
 }
 
-func TestSiblingModelsPreflightOnly(t *testing.T) {
-	for _, pair := range [][3]string{{"SM-G980F", "SM-G981B", "G981BXXU1ABCD"}, {"SM-G986B", "SM-G985F", "G985FXXU1ABCD"}} {
+func TestSiblingModelsAcceptedReadOnly(t *testing.T) {
+	// One package per board: the measured model writes, its sibling is accepted for a read-only check.
+	for _, pair := range [][3]string{
+		{"SM-G980F", "SM-G981B", "G981BXXU1ABCD"}, {"SM-G981B", "SM-G980F", "G980FXXU1ABCD"},
+		{"SM-G986B", "SM-G985F", "G985FXXU1ABCD"}, {"SM-G985F", "SM-G986B", "G986BXXU1ABCD"},
+	} {
 		c := Config{Models: []string{pair[0]}, Products: []string{"y2s"}}
 		for _, writes := range []bool{false, true} {
 			c.AllowWrites = writes
-			err := verifyIdentity(c, pair[1], pair[2], "y2s", "exynos990", "0", "unlocked")
-			if (err != nil) != writes {
+			if err := verifyIdentity(c, pair[1], pair[2], "y2s", "exynos990", "0", "unlocked"); err != nil {
 				t.Fatalf("model=%s writes=%v err=%v", pair[1], writes, err)
 			}
 		}
+		if !siblingOnly(c, pair[1]) || !siblingOnly(c, pair[1]+"/DS") {
+			t.Fatalf("%s must be sibling-only in a %s package", pair[1], pair[0])
+		}
+		if siblingOnly(c, pair[0]) {
+			t.Fatalf("%s is the measured model, not a sibling", pair[0])
+		}
+	}
+	// Not siblings: other boards, and the regional variant of the measured model itself.
+	c := Config{Models: []string{"SM-G980F"}}
+	for _, m := range []string{"SM-G986B", "SM-G988B", "SM-G980N", "SM-G980F"} {
+		if siblingOnly(c, m) {
+			t.Fatalf("%s must not be treated as an S20 sibling", m)
+		}
+	}
+}
+
+func TestSiblingDeviceNeverOpensForWriting(t *testing.T) {
+	d := &linuxDevice{siblingOnly: true}
+	if _, e := d.OpenWritable("boot"); e == nil {
+		t.Fatal("a sibling-only device must refuse writes")
 	}
 }

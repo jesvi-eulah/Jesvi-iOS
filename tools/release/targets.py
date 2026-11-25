@@ -45,6 +45,7 @@ DEFAULTS = {
     'TARGET_BOARD_CONF': '',           # loader memory map, common/devices/<board>.conf
     'TARGET_UEFI': '', 'TARGET_BOOTARGS': '', 'TARGET_FIRMWARE': '',
     'TARGET_DISABLE_MODS': '',        # board-specific opt-out (y2s: softpasscode)
+    'TARGET_PACKAGE_NAME': '',         # ZIP name for the board (x1slte -> x1s: one ZIP for G980F + G981B); default codename
     # Android side (ExtremeROM values), used by Jesvi-iOS-Restore and checks
     'TARGET_SUPER_GROUP_NAME': 'group_basic', 'TARGET_SUPER_PARTITION_SIZE': '', 'TARGET_SUPER_GROUP_SIZE': '',
 }

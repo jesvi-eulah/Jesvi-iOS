@@ -46,11 +46,50 @@ func regionalIdentity(c Config, model, firmware string) bool {
 	}
 	for _, qualified := range c.Models {
 		m := regionalModel.FindStringSubmatch(qualified)
-		if m != nil && (m[1] == actual[1] || (!c.AllowWrites && ((m[1] == "G980" && actual[1] == "G981") || (m[1] == "G986" && actual[1] == "G985")))) {
+		if m != nil && (m[1] == actual[1] || siblingPair(m[1], actual[1])) {
 			return true
 		}
 	}
 	return false
+}
+
+// One board, two modems (like ExtremeROM's x1s and y2s targets): the S20 LTE/5G and
+// S20+ LTE/5G share everything but the modem and RAM. A package built for one model
+// accepts its sibling, but only ever as a read-only check: its partitions are unmeasured.
+func siblingPair(qualified, actual string) bool {
+	return (qualified == "G980" && actual == "G981") || (qualified == "G981" && actual == "G980") ||
+		(qualified == "G986" && actual == "G985") || (qualified == "G985" && actual == "G986")
+}
+
+// siblingOnly reports a phone accepted only as the sibling of a qualified model:
+// no exact or regional match of its own model prefix. Such a phone never gets writes.
+func siblingOnly(c Config, model string) bool {
+	actual := regionalModel.FindStringSubmatch(model)
+	if actual == nil || hasModel(c.Models, model) {
+		return false
+	}
+	sibling := false
+	for _, qualified := range c.Models {
+		m := regionalModel.FindStringSubmatch(qualified)
+		if m == nil {
+			continue
+		}
+		if m[1] == actual[1] {
+			return false
+		}
+		if siblingPair(m[1], actual[1]) {
+			sibling = true
+		}
+	}
+	return sibling
+}
+
+// recoveryModel is the hardware model recovery reports (bootloader's em.model first).
+func recoveryModel(get func(string) string) string {
+	if m := get("ro.boot.em.model"); m != "" {
+		return m
+	}
+	return get("ro.product.model")
 }
 
 func verifyIdentity(c Config, model, bootloader, product, soc, locked, state string) error {
@@ -74,10 +113,7 @@ func verifyIdentity(c Config, model, bootloader, product, soc, locked, state str
 // Samsung recovery templates can report a generic product model. Prefer the
 // bootloader-supplied hardware model used by ExtremeROM's device assertions.
 func verifyRecoveryIdentity(c Config, get func(string) string, warnings ...func(string)) error {
-	model := get("ro.boot.em.model")
-	if model == "" {
-		model = get("ro.product.model")
-	}
+	model := recoveryModel(get)
 	bootloader, fallback := get("ro.bootloader"), get("ro.boot.bootloader")
 	if bootloader != "" && fallback != "" && bootloader != fallback && !(firmwareMatchesModel(model, bootloader) && firmwareMatchesModel(model, fallback)) {
 		return errors.New("conflicting bootloader properties")

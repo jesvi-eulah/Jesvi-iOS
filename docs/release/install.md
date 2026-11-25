@@ -11,9 +11,9 @@ anything; another model or bootloader is refused.
   out. ExtremeROM's TWRP (unified Exynos 990 build, 3.7.1_12) works.
 - For the computer method: `adb` and this repository, and the cable **straight into the computer**. Through a USB hub
   TWRP's connection kept vanishing.
-- Get the release files: `Jesvi-iOS_<version>_x1slte.zip` (on GitHub in two parts: join them with
+- Get the release files: `Jesvi-iOS_<version>_x1s.zip` (on GitHub in two parts: join them with
   `cat <zip>.part1 <zip>.part2 > <zip>` and check `shasum -a 256 -c <zip>.sha256`) and
-  `Jesvi-iOS-Restore_<version>_x1slte.zip`.
+  `Jesvi-iOS-Restore_<version>_x1s.zip`.
 
 Booting TWRP on an S20: phone off or in Download Mode, hold **Volume Down + Power** until the screen goes black, then
 at once **Volume Up + Power** until TWRP appears.
@@ -32,7 +32,7 @@ the "boot into recovery" flag set). Without the script: Odin → AP: TWRP, then 
 
 1. Boot TWRP.
 2. Either
-   - **with a computer:** `tools/install/twrp-install.sh --erase Jesvi-iOS_<version>_x1slte.zip` and type `ERASE`
+   - **with a computer:** `tools/install/twrp-install.sh --erase Jesvi-iOS_<version>_x1s.zip` and type `ERASE`
      (this erases the phone's data), or
    - **without one:** put the ZIP on a **microSD card or USB-C stick** (never internal storage: it is about to be
      wiped), then TWRP → *Install* → pick the ZIP, and watch the 45-second cancel window. Fresh mode erases existing userdata when the window expires.
@@ -49,7 +49,7 @@ Use a ZIP explicitly built with `MODE=update` (or `MODE=choose`) to keep data, a
 and settings. The default `MODE=fresh` ZIP erases them, including on an existing iOS phone.
 
 1. `tools/install/flash-twrp.sh` (iOS lives where TWRP was; this puts TWRP back and boots it, no buttons).
-2. `tools/install/twrp-install.sh Jesvi-iOS_<version>_x1slte.zip` (cable straight into the computer), type `yes`.
+2. `tools/install/twrp-install.sh Jesvi-iOS_<version>_x1s.zip` (cable straight into the computer), type `yes`.
 3. It installs, checks every byte and restarts into iOS by itself.
 
 The ZIP's iOS data size must match the phone's: a 64 GB package (`IOS_DATA_GB=64`) refuses a phone whose iOS data
@@ -68,7 +68,7 @@ partition table were never touched.
 
 1. `tools/install/flash-twrp.sh` (or **Odin → AP: TWRP**: iOS's runtime took recovery's place). Boot TWRP.
 2. Run the restore ZIP **with the script** (on an iOS phone TWRP's Install button refuses every ZIP):
-   `tools/install/twrp-install.sh Jesvi-iOS-Restore_<version>_x1slte.zip`, wait for the checks, then hold **Volume Up** on the phone for three seconds to restore.
+   `tools/install/twrp-install.sh Jesvi-iOS-Restore_<version>_x1s.zip`, wait for the checks, then hold **Volume Up** on the phone for three seconds to restore.
    Press Volume Down or Power to cancel, or let the 45-second prompt expire.
    Restore puts the saved Android partition map back into `super` (or Samsung's stock layout if none was saved), clears
    the iOS data headers and puts Samsung's own power-on pictures back. BOOT and recovery are left alone.

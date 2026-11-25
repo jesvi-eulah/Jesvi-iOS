@@ -40,10 +40,10 @@ App Store downloads, iMessage and FaceTime remain unavailable. [Device configura
 
 ```sh
 # First install or deliberate erase
-tools/install/twrp-install.sh --erase /path/to/fresh_x1slte.zip
+tools/install/twrp-install.sh --erase /path/to/fresh_x1s.zip
 
 # Preserve an existing installation
-tools/install/twrp-install.sh /path/to/update_x1slte.zip
+tools/install/twrp-install.sh /path/to/update_x1s.zip
 ```
 
 The computer helper asks for approval before copying an install ZIP.
@@ -88,11 +88,11 @@ For S20+ 5G, use the [y2s build guide](tools/y2s/README.md) to prepare the board
 ### x1s · Galaxy S20
 
 - **SM-G980F** (LTE, `x1slte`) — **Update tested.** The phone booted with user data intact after a TWRP update on `G980FXXSNHYB7`. Use the LTE fresh-install or update ZIP. [Test record](docs/release/qualification-x1slte.md) · [Install guide](docs/release/install.md)
-- **SM-G981B** (5G) — **Preflight only.** Use the read-only `x1slte` ZIP to check the device. The 5G model has a different modem and RAM configuration.
+- **SM-G981B** (5G) — **Check only.** Flash the same `x1s` ZIP: on a G981B it runs the read-only check and writes nothing. The 5G model has a different modem and RAM configuration.
 
 ### y2s · Galaxy S20+
 
-- **SM-G985F** (LTE) — **Preflight only.** Use the read-only `y2s` ZIP. The LTE boot chain and partition layout still need measurement.
+- **SM-G985F** (LTE) — **Check only.** Flash the same `y2s` ZIP: on a G985F it runs the read-only check and writes nothing. The LTE boot chain and partition layout still need measurement.
 - **SM-G986B** (5G) — **Boot-tested.** The board and partitions were measured on `G986BXXSNHYB1`. The development port uses TWRP for fresh installs and the USB loader for updates. Fresh-install and peripheral testing is pending. [Board evidence](docs/release/device-evidence-y2s.md) · [Install guide](tools/y2s/README.md)
 
 For regional G980 and G986 devices, recovery accepts firmware revisions that identify the phone’s model and warns on untested revisions. It also checks the Exynos SoC, bootloader unlock state and partition sizes. These builds support Exynos hardware only.

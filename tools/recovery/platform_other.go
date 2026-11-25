@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-type linuxDevice struct{}
+type linuxDevice struct{ siblingOnly bool }
 
 func openRecovery(Config, *os.File, func(string)) (*linuxDevice, error) {
 	return nil, errors.New("device installation requires Linux arm64 TWRP")

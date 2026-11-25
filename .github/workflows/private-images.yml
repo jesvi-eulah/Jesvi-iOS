@@ -1,13 +1,13 @@
 name: Build Jesvi iOS (TWRP)
 run-name: >-
-  Jesvi iOS ${{ inputs.version || 'release.conf' }} · ${{ inputs.target == 'y2s' && 'Galaxy S20+ 5G' || 'Galaxy S20' }}
+  Jesvi iOS ${{ inputs.version || 'release.conf' }} · ${{ inputs.target == 'y2s' && 'Galaxy S20+' || 'Galaxy S20' }}
   · ${{ inputs.target == 'y2s' && 'fresh' || inputs.mode }} · writes ${{ inputs.writes }}
 # Same build.sh release as local builds; public image output requires explicit opt-in.
 on:
   workflow_dispatch:
     inputs:
       target:
-        description: 'Phone: x1slte = Galaxy S20 (SM-G980F), y2s = Galaxy S20+ 5G (SM-G986B)'
+        description: 'Board: x1slte = Galaxy S20 ZIP (installs G980F, checks G981B), y2s = Galaxy S20+ ZIP (installs G986B, checks G985F)'
         type: choice
         options: [x1slte, y2s]
         default: x1slte

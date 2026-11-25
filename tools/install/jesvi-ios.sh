@@ -38,7 +38,7 @@ if [ ! -d fw-wifi ] && phone; then say "your phone's firmware files (first time 
 
 say "3/4 building (the first time about an hour)"
 make release
-zip=$(ls -t dist/release/Jesvi-iOS_*_x1slte.zip | head -1)
+zip=$(ls -t dist/release/Jesvi-iOS_*_x1s.zip | head -1)
 ok "built: $zip"
 
 [ $flash = 1 ] || { echo; echo "install later with:  tools/install/twrp-install.sh $zip"; exit 0; }

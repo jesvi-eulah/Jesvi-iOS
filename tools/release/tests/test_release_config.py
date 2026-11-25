@@ -24,14 +24,21 @@ class ReleaseConfigTests(unittest.TestCase):
         self.assertEqual([(t, o) for t, o, _ in todo],
                          [('x1slte', 'twrp'), ('x1slte', 'restore'), ('y2s', 'twrp'), ('y2s', 'restore')])
         self.assertEqual(skipped, [])
-        n = release_config.names(c, 'x1slte', '20260101')
+        n = release_config.names(c, release_config.package_name('x1slte'), '20260101')
         self.assertEqual(c['MODE'], 'fresh')
-        self.assertEqual(n['twrp'], 'Jesvi-iOS_0.3_20260101_fresh_x1slte.zip')
-        self.assertEqual(n['restore'], 'Jesvi-iOS-Restore_0.3_20260101_x1slte.zip')
+        self.assertEqual(n['twrp'], 'Jesvi-iOS_0.3_20260101_fresh_x1s.zip')
+        self.assertEqual(n['restore'], 'Jesvi-iOS-Restore_0.3_20260101_x1s.zip')
+
+    def test_one_package_per_board(self):
+        # Like ExtremeROM: x1s = S20 LTE + 5G, y2s = S20+ LTE + 5G.
+        self.assertEqual(release_config.package_name('x1slte'), 'x1s')
+        self.assertEqual(release_config.package_name('x1s'), 'x1s')
+        self.assertEqual(release_config.package_name('y2s'), 'y2s')
+        self.assertEqual(release_config.package_name('y2slte'), 'y2s')
 
     def test_preflight_names_say_so(self):
         c = self.conf('VERSION=1.2\nWRITES=false\n')
-        n = release_config.names(c, 'x1slte', '20260101')
+        n = release_config.names(c, release_config.package_name('x1slte'), '20260101')
         self.assertTrue(n['twrp'].endswith('_preflight.zip'))
         self.assertTrue(n['restore'].endswith('_preflight.zip'))
 
@@ -45,10 +52,10 @@ class ReleaseConfigTests(unittest.TestCase):
         for mode in ('choose', 'fresh', 'update'):
             with self.subTest(mode=mode):
                 c = self.conf('', f'MODE={mode}', 'WRITES=true', 'OUTPUTS=twrp preflight restore')
-                n = release_config.names(c, 'x1slte', '20260101')
+                n = release_config.names(c, release_config.package_name('x1slte'), '20260101')
                 names.add(n['twrp'])
                 if mode != 'choose':
-                    self.assertIn(f'_{mode}_x1slte', n['twrp'])
+                    self.assertIn(f'_{mode}_x1s', n['twrp'])
                 self.assertNotIn(f'_{mode}_', n['restore'])
                 with mock.patch('release_config.bundle_for', return_value=Path('/candidate')), \
                      mock.patch('twrp_package.package') as package, \

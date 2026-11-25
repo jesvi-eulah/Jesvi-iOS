@@ -12,7 +12,6 @@ import (
 
 const uiWidth = 38
 
-
 // screen writes to the recovery pipe; nil in tests and in --inspect.
 type screen struct {
 	pipe     io.Writer

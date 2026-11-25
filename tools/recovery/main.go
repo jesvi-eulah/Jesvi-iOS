@@ -105,7 +105,7 @@ func run() error {
 	}
 	headerName, headerModel := "Galaxy S20", "SM-G980F"
 	if b.Config.Device == "y2s" {
-		headerName, headerModel = "Galaxy S20+ 5G", "SM-G986B"
+		headerName, headerModel = "Galaxy S20+", "SM-G986B"
 	} else if len(b.Config.Models) > 0 {
 		headerModel = b.Config.Models[0]
 	}
@@ -122,6 +122,11 @@ func run() error {
 		return e
 	}
 	defer d.Close()
+	if d.siblingOnly && b.Config.AllowWrites {
+		b.Config.AllowWrites = false
+		log("This package was measured on " + strings.Join(b.Config.Models, "/") + "; your phone is its sibling model.")
+		log("Running the read-only check: nothing will be written. Share this log to get your model supported.")
+	}
 	log("Exact device, bootloader, partition sizes and battery checks passed.")
 	if batteryTenthsC > 450 {
 		log(fmt.Sprintf("Battery warm (%d.%d C): continuing in 5 s; Volume Down or Power cancels.", batteryTenthsC/10, batteryTenthsC%10))

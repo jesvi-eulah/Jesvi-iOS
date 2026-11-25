@@ -29,8 +29,11 @@ type linuxDevice struct {
 	dataLocked bool
 	parts      map[string]partition
 	writes     map[string]*os.File
-	lock       *os.File
-	archive    *os.File
+	// siblingOnly: the sibling model of the one this package was measured on (G981B in
+	// an S20 package, G985F in an S20+ package). Checks only; OpenWritable refuses.
+	siblingOnly bool
+	lock        *os.File
+	archive     *os.File
 }
 
 func deviceID(dev uint64) string {
@@ -81,7 +84,8 @@ func openRecovery(c Config, archive *os.File, log func(string)) (*linuxDevice, e
 		lock.Close()
 		return nil, errors.New("another installer owns storage")
 	}
-	d := &linuxDevice{parts: make(map[string]partition), writes: make(map[string]*os.File), lock: lock, archive: archive}
+	d := &linuxDevice{parts: make(map[string]partition), writes: make(map[string]*os.File), lock: lock, archive: archive,
+		siblingOnly: siblingOnly(c, recoveryModel(prop))}
 	good := false
 	defer func() {
 		if !good {
@@ -214,6 +218,9 @@ func (d *linuxDevice) CheckSafe() error {
 	return nil
 }
 func (d *linuxDevice) OpenWritable(name string) (Target, error) {
+	if d.siblingOnly {
+		return nil, errors.New("sibling model: this package only checks your phone, it never writes to it")
+	}
 	p, ok := d.parts[name]
 	if !ok {
 		return nil, errors.New("protected/unknown partition destination")
