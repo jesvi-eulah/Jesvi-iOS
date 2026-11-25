@@ -11,7 +11,7 @@ from manage import ROOT, profile  # noqa: E402
 
 class TargetTests(unittest.TestCase):
     def test_every_target_loads_and_matches_its_install_profile(self):
-        self.assertEqual(targets.names(), ['c1s', 'c2s', 'r8s', 'x1s', 'x1slte', 'y2s', 'z3s'])
+        self.assertEqual(targets.names(), ['c1s', 'c2s', 'r8s', 'x1s', 'x1slte', 'y2s', 'y2slte', 'z3s'])
         for name in targets.names():
             d = profile(name)  # raises on target.conf/device.json disagreement
             self.assertEqual(d['target']['TARGET_CODENAME'], name)
