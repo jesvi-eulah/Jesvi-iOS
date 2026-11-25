@@ -78,6 +78,8 @@ jobs:
     timeout-minutes: 5
     outputs:
       targets: ${{ steps.pick.outputs.targets }}
+      s20: ${{ steps.pick.outputs.s20 }}
+      family: ${{ steps.pick.outputs.family }}
       y2s_family: ${{ steps.pick.outputs.y2s_family }}
     steps:
       - name: Pick the phones to build
@@ -93,6 +95,11 @@ jobs:
           [ "$S20ULTRA" = true ] && t+=('"z3s"')
           [ ${#t[@]} -gt 0 ] || { echo '::error::Tick at least one phone.'; exit 1; }
           echo "targets=[$(IFS=,; echo "${t[*]}")]" >> "$GITHUB_OUTPUT"
+          echo "s20=$S20" >> "$GITHUB_OUTPUT"
+          fam=()
+          [ "$S20PLUS" = true ] && fam+=('"y2s"')
+          [ "$S20ULTRA" = true ] && fam+=('"z3s"')
+          echo "family=[$(IFS=,; echo "${fam[*]}")]" >> "$GITHUB_OUTPUT"
           [ "$S20PLUS" = true ] || [ "$S20ULTRA" = true ] && f=true || f=false
           echo "y2s_family=$f" >> "$GITHUB_OUTPUT"
           echo "Phones: ${t[*]}" >> "$GITHUB_STEP_SUMMARY"
@@ -122,24 +129,23 @@ jobs:
     uses: ./.github/workflows/y2s-firmware.yml
     # The encrypted board-input handoff key lives in the private-images environment.
     secrets: inherit
-  candidate:
+  # The S20 needs no UEFI build: it starts at once, in parallel with the S20+ family's Mu job.
+  candidate-s20:
     name: Build ${{ matrix.target }}
-    needs: [configuration, y2s-board]
+    needs: configuration
+    if: needs.configuration.outputs.s20 == 'true'
     strategy:
       fail-fast: false
       matrix:
-        target: ${{ fromJSON(needs.configuration.outputs.targets) }}
-    if: >-
-      ${{ !cancelled() && needs.configuration.result == 'success' &&
-      (needs.y2s-board.result == 'success' || needs.y2s-board.result == 'skipped') }}
+        target: [x1slte]
     environment: private-images
-    runs-on: ${{ inputs.runner == 'self-hosted' && fromJSON('["self-hosted", "macOS", "exynos990-private"]') || (inputs.runner == 'macos-26' && 'macos-26' || 'macos-15') }}
+    runs-on: &phone-runner ${{ inputs.runner == 'self-hosted' && fromJSON('["self-hosted", "macOS", "exynos990-private"]') || (inputs.runner == 'macos-26' && 'macos-26' || 'macos-15') }}
     timeout-minutes: 360
-    env:
+    env: &phone-env
       RELEASE_OUT: dist/release-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.target }}
       PYTHONUNBUFFERED: '1'
       SHARE: '1'
-    steps:
+    steps: &phone-steps
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
@@ -386,9 +392,25 @@ jobs:
             out/experimental/y2s/build.log
           retention-days: 7
           if-no-files-found: ignore
+  # S20+ and S20 Ultra: same steps (YAML anchors above), after their shared Mu-y2s job.
+  candidate:
+    name: Build ${{ matrix.target }}
+    needs: [configuration, y2s-board]
+    if: >-
+      ${{ !cancelled() && needs.configuration.outputs.y2s_family == 'true' &&
+      needs.y2s-board.result == 'success' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.configuration.outputs.family) }}
+    environment: private-images
+    runs-on: *phone-runner
+    timeout-minutes: 360
+    env: *phone-env
+    steps: *phone-steps
   release:
     name: Add the phones to the GitHub release
-    needs: [configuration, candidate]
+    needs: [configuration, candidate-s20, candidate]
     # Runs once after every phone, even if one failed: finished phones are still added.
     if: ${{ !cancelled() && inputs.release_tag != '' && needs.configuration.result == 'success' }}
     runs-on: ubuntu-24.04
