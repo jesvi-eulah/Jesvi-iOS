@@ -102,8 +102,14 @@ Inspect current repository visibility and run status rather than treating config
    checksum. The hosted job checks the settings and confirms the asset exists
    before installing build tools. The input archive follows repository visibility; it is input storage, not a product release.
 4. Set `ENABLE_PRIVATE_IMAGE_BUILDS=true`. Public repositories also require
-   explicit `ENABLE_PUBLIC_IMAGE_BUILDS=true` authorization for public image artifacts. Dispatch **Full TWRP release** with
-   `runner=hosted`, the desired mode, `outputs=twrp`, and writes as appropriate.
+   explicit `ENABLE_PUBLIC_IMAGE_BUILDS=true` authorization for public image artifacts. Dispatch **Build Jesvi iOS for Galaxy S20 (TWRP)** with `runner=hosted` and `outputs=twrp`.
+   For `target=y2s`, the workflow first calls `y2s-firmware.yml` on Ubuntu ARM64: set either
+   `Y2S_STOCK_FIRMWARE_URL` (a verified SM-G986B XSG stock ZIP, checked against its published
+   MD5) or `Y2S_FUS_IMEI` in the `private-images` environment so the pinned stock boot tree can
+   be fetched. `HOSTED_BOARD_INPUTS_AGE_KEY` encrypts both that handoff and the shared board
+   inputs; the macOS job installs `age` and verifies `SHA256SUMS` before building. With the
+   default `writes=from-release.conf`, y2s produces a flashable first-install ZIP (`MODE=fresh`,
+   `IOS_DATA_GB=all`, `WRITES=true`); choose `writes=false` for a preflight-only ZIP.
 
 `ci/setup-hosted-images.sh` only runs on disposable GitHub-hosted macOS machines.
 It retains the selected Xcode, removes unused Xcode versions/simulator data,

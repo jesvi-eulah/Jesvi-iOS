@@ -2,6 +2,19 @@ name: Build S20+ 5G board inputs
 on:
   workflow_dispatch:
   workflow_call:
+    # The caller passes these with `secrets: inherit`; declaring them here keeps
+    # the handoff explicit and makes a missing secret a visible configuration
+    # problem instead of an empty password in samloader/age.
+    secrets:
+      Y2S_FUS_IMEI:
+        description: IMEI used with Samsung's firmware service (optional when a stock ZIP URL is set)
+        required: false
+      Y2S_STOCK_FIRMWARE_URL:
+        description: HTTPS URL of the verified SM-G986B XSG stock firmware ZIP
+        required: false
+      HOSTED_BOARD_INPUTS_AGE_KEY:
+        description: age identity used to hand Mu-y2s.img and the stock DTBH to the macOS build
+        required: false
 permissions:
   contents: read
 jobs:
@@ -33,8 +46,14 @@ jobs:
             echo "::error::Set Y2S_FUS_IMEI or Y2S_STOCK_FIRMWARE_URL in private-images."
             exit 1
           fi
+          # Samsung switched FUS to the 2026 "Smart" scheme. The pinned client
+          # returns an empty nonce; carry the reviewed protocol/key patch with
+          # the checkout so the download works on a fresh hosted runner.
+          git clone --filter=blob:none https://github.com/martinetd/samloader.git "$RUNNER_TEMP/samloader-src"
+          git -C "$RUNNER_TEMP/samloader-src" checkout --detach 0d724ce27b88915f61111313ce406a12c5c25a4a
+          git -C "$RUNNER_TEMP/samloader-src" apply "$GITHUB_WORKSPACE/tools/y2s/samloader-2026-fus.patch"
           python3 -m venv "$RUNNER_TEMP/samloader"
-          "$RUNNER_TEMP/samloader/bin/pip" install git+https://github.com/martinetd/samloader.git@0d724ce27b88915f61111313ce406a12c5c25a4a
+          "$RUNNER_TEMP/samloader/bin/pip" install "$RUNNER_TEMP/samloader-src"
           cmd=("$RUNNER_TEMP/samloader/bin/samloader" -m SM-G986B -r XSG -i "$DEVICE_IMEI")
           version=G986BXXSNHYB1/G986BOXBNHYB1/G986BXXSNHYB1/G986BXXSNHYB1
           "${cmd[@]}" download -v "$version" -O stock
@@ -86,9 +105,15 @@ jobs:
           AGE_IDENTITY: ${{ secrets.HOSTED_BOARD_INPUTS_AGE_KEY }}
         run: |
           set -euo pipefail
+          test -n "$AGE_IDENTITY" || {
+            echo '::error::Set HOSTED_BOARD_INPUTS_AGE_KEY in the private-images environment to encrypt the y2s board inputs.'
+            exit 1
+          }
           cd "$RUNNER_TEMP/stock"
+          (cd trees && sha256sum Mu-y2s.img stock-boot-dtbh.img > SHA256SUMS)
           recipient=$(printf '%s\n' "$AGE_IDENTITY" | age-keygen -y)
-          tar -C trees -czf - Mu-y2s.img stock-boot-dtbh.img | age -r "$recipient" -o "$RUNNER_TEMP/y2s-board-inputs.tar.gz.age"
+          tar -C trees -czf - Mu-y2s.img stock-boot-dtbh.img SHA256SUMS |
+            age -r "$recipient" -o "$RUNNER_TEMP/y2s-board-inputs.tar.gz.age"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: y2s-board-inputs

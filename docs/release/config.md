@@ -28,9 +28,12 @@ For an explicit first installation, build with:
 ./build.sh release --set MODE=fresh --set WRITES=true --set OUTPUTS=twrp
 ```
 
-This erases existing userdata after a 45-second cancel window, even on an existing
-iOS installation. Volume Down/Power cancels; holding Volume Up for three seconds
-proceeds early. Read-only preflights do not enter this window. Use off-device
+A dispatched `target=y2s` build always sets `MODE=fresh`, `IOS_DATA_GB=all` and
+(unless `writes=false` is chosen explicitly) `WRITES=true`, so its artifact is a
+flashable first-install TWRP ZIP rather than a preflight. This erases existing
+userdata after a 45-second cancel window, even on an existing iOS installation.
+Volume Down/Power cancels; holding Volume Up for three seconds proceeds early.
+Read-only preflights do not enter this window. Use off-device
 backups first. `MODE=update` requires matching existing iOS userdata and cannot
 initialize an Android phone. Unmounting or wiping Android cache does not change
 an update-only ZIP's mode; rebuild the ZIP. Optional `MODE=choose` selects fresh
@@ -42,7 +45,8 @@ sized iOS data. The dry-run/build plan prints the mode and whether writes are en
 | Workflow | Runner | Output |
 |---|---|---|
 | `ci.yml` | public | tests, Go recovery checks, kernel, and **restore ZIPs** for every measured target (artifact `restore-zips-<sha>`) |
-| `private-images.yml` | self-hosted macOS with private Apple inputs | everything `release.conf` asks for (`mode`/`writes`/`outputs` inputs override it); artifact `jesvi-ios-<sha>-<run>` |
+| `private-images.yml` | hosted or self-hosted macOS with private Apple inputs | everything `release.conf` asks for (`mode`/`writes`/`outputs` inputs override it); artifact `jesvi-ios-<sha>-<run>` |
+| `y2s-firmware.yml` | hosted Ubuntu ARM64 | called by `private-images.yml` for `target=y2s`: extracts the pinned stock SM-G986B tree, builds `Mu-y2s.img`, and hands it to the macOS job as an age-encrypted artifact |
 | `draft-release.yml` | public, on `v*` tags | draft release with the restore ZIPs attached |
 
 The restore ZIP carries no Apple or Samsung files, so public runners can build it.

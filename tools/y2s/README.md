@@ -68,12 +68,15 @@ make a check pass.
 
 ## Hosted release build
 
-Select `y2s` in the [TWRP release workflow](https://github.com/jesvi-eulah/Jesvi-iOS/actions/workflows/private-images.yml).
-Use fresh mode for the installer. The Ubuntu ARM64 job extracts the stock
-SM-G986B device tree and builds Mu-Silicium. The macOS job receives the Mu
-image and DTBH as an encrypted artifact, builds the iOS images, and verifies
-the installer and Restore ZIPs. The hosted build uses the compact Apple
-extraction, the y2s userland overlay, and the full userdata volume.
+Select `target=y2s` in the [TWRP release workflow](https://github.com/jesvi-eulah/Jesvi-iOS/actions/workflows/private-images.yml).
+The Ubuntu ARM64 job extracts the stock SM-G986B device tree, builds Mu-Silicium,
+and checks the handoff with `SHA256SUMS`. The macOS job decrypts the Mu image and
+DTBH, builds the iOS images, and verifies the installer and Restore ZIPs. The
+hosted build uses the compact Apple extraction, the y2s userland overlay, and the
+full userdata volume. y2s always builds `MODE=fresh` with `IOS_DATA_GB=all`; with
+the default `writes=from-release.conf` the result is a **flashable first-install
+TWRP ZIP** (writes enabled after the 45-second cancel window), not a preflight.
+Choose `writes=false` if you only want the read-only checking ZIP.
 
 Set `Y2S_FUS_IMEI` in the `private-images` environment to download through
 Samsung's firmware service. A direct HTTPS link to the full

@@ -23,6 +23,8 @@ on:
         type: choice
         options: [from-release.conf, 'true', 'false']
         default: from-release.conf
+        # y2s is a first-install-only target: from-release.conf is upgraded to
+        # WRITES=true below so a dispatched build produces a flashable TWRP ZIP.
       outputs:
         description: Override release.conf OUTPUTS (e.g. "twrp restore tar"); empty keeps the file's value
         type: string
@@ -61,6 +63,10 @@ jobs:
     needs: configuration
     if: inputs.target == 'y2s' && inputs.runner != 'self-hosted'
     uses: ./.github/workflows/y2s-firmware.yml
+    # The firmware download and the encrypted board-input handoff live in the
+    # private-images environment. Without this, the called workflow sees empty
+    # secrets and can neither fetch the stock ZIP nor encrypt Mu-y2s.img.
+    secrets: inherit
   candidate:
     name: Build and verify release packages
     needs: [configuration, y2s-board]
@@ -164,10 +170,15 @@ jobs:
         env:
           INPUTS_AGE_KEY: ${{ secrets.HOSTED_BOARD_INPUTS_AGE_KEY }}
         run: |
-          set -o pipefail
+          set -euo pipefail
+          test -n "$INPUTS_AGE_KEY" || {
+            echo '::error::Set HOSTED_BOARD_INPUTS_AGE_KEY in the private-images environment to decrypt the y2s board inputs.'
+            exit 1
+          }
           mkdir -p inputs/y2s
           printf '%s\n' "$INPUTS_AGE_KEY" | age --decrypt --identity - "$RUNNER_TEMP/y2s/y2s-board-inputs.tar.gz.age" |
-            tar -xzf - -C inputs/y2s Mu-y2s.img stock-boot-dtbh.img
+            tar -xzf - -C inputs/y2s Mu-y2s.img stock-boot-dtbh.img SHA256SUMS
+          (cd inputs/y2s && shasum -a 256 -c SHA256SUMS)
       - name: Build everything release.conf asks for
         env:
           WRITES_INPUT: ${{ inputs.writes }}
@@ -177,8 +188,19 @@ jobs:
         run: |
           test ! -e "$RELEASE_OUT"
           args=(--set "OUT=$RELEASE_OUT" --set "TARGETS=$TARGET_INPUT")
-          if [ "$TARGET_INPUT" = y2s ]; then args+=(--set IOS_DATA_GB=all); fi
-          if [ "$MODE_INPUT" != from-release.conf ]; then args+=(--set "MODE=$MODE_INPUT"); fi
+          if [ "$TARGET_INPUT" = y2s ]; then
+            if [ "$MODE_INPUT" != from-release.conf ] && [ "$MODE_INPUT" != fresh ]; then
+              echo "::error::y2s TWRP is first-install only; choose mode from-release.conf or fresh."
+              exit 1
+            fi
+            # Measured y2s image geometry: full userdata, first-install only.
+            args+=(--set IOS_DATA_GB=all --set MODE=fresh)
+            # release.conf defaults to a read-only preflight for safety. This is
+            # an explicitly dispatched release build: ship a flashable ZIP unless
+            # the operator deliberately asked for a preflight.
+            if [ "$WRITES_INPUT" = from-release.conf ]; then args+=(--set WRITES=true); fi
+          fi
+          if [ "$MODE_INPUT" != from-release.conf ] && [ "$TARGET_INPUT" != y2s ]; then args+=(--set "MODE=$MODE_INPUT"); fi
           if [ "$WRITES_INPUT" != from-release.conf ]; then args+=(--set "WRITES=$WRITES_INPUT"); fi
           if [ -n "$OUTPUTS_INPUT" ]; then args+=(--set "OUTPUTS=$OUTPUTS_INPUT"); fi
           ./build.sh release --dry-run "${args[@]}"
