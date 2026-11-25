@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "id": "y2slte",
+  "name": "Galaxy S20+",
+  "platform": "exynos990",
+  "status": "unmaintained",
+  "maintainers": [],
+  "models": ["SM-G985F"],
+  "recovery_products": ["y2slte"],
+  "bootloaders": [],
+  "installer_validated": false,
+  "partitions": {},
+  "layout": {},
+  "evidence": null
+}

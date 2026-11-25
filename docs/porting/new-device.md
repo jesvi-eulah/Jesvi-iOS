@@ -19,6 +19,7 @@ not supported yet, you only add what is unique to it.
 | x1slte | Galaxy S20 (SM-G980F) | validated, daily driver |
 | y2s | Galaxy S20+ 5G (SM-G986B) | development, boot-tested, CI builds |
 | x1s | Galaxy S20 5G (SM-G981B) | unmaintained, inherits x1slte |
+| y2slte | Galaxy S20+ (SM-G985F) | unmaintained, inherits y2s |
 | z3s | Galaxy S20 Ultra (SM-G988B) | unmaintained |
 | c1s | Galaxy Note20 (SM-N980F/N981B) | unmaintained |
 | c2s | Galaxy Note20 Ultra (SM-N985F/N986B) | unmaintained |
