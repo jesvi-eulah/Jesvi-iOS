@@ -19,7 +19,7 @@ jobs:
       - run: bash ci/check.sh
       - run: bash ci/check-recovery.sh
       - run: python3 tools/release/audit.py --output out/publication-audit.json
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: publication-audit
           path: out/publication-audit.json
@@ -39,7 +39,7 @@ jobs:
         run: ./build.sh release --set OUTPUTS=restore --set WRITES=false --set OUT=dist/ci
       - name: Audit the exact firmware-free Restore preflight packages
         run: python3 tools/release/restore_audit.py dist/ci
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: restore-zips-${{ github.sha }}
           path: dist/ci/
@@ -84,7 +84,7 @@ jobs:
           path: out/kernel
           key: ${{ steps.identity.outputs.key }}
       - name: Upload development kernel only
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: x1slte-development-kernel-${{ github.sha }}
           path: |
