@@ -32,7 +32,7 @@ Off until confirmed on a z3s: **camera** (108 MP HM1 + periscope need their own 
 1. TWRP, unlocked bootloader, Android backed up (fresh install erases userdata).
 2. Flash the `z3s` ZIP. It refuses any phone that is not an SM-G988B, or whose boot, recovery or
    super partition differs.
-3. Report: does the loader menu appear, does iOS reach the lock screen, what works.
+3. Report: does the loader menu appear, does iOS reach the lock screen, what works. Logs: [one command](../release/install.md#sending-logs-freezes-crashes).
    The loader's *Log access (USB)* gives the boot log.
 4. Back to Android: flash the `z3s` Restore ZIP, then Format Data and an Android ROM.
 

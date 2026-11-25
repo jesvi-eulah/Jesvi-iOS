@@ -237,3 +237,12 @@ controlled developer qualification rather than an end-user installation release.
 
 [Rollback / return to stock Android](rollback.md) covers the separate recovery
 paths. Restoring BOOT alone is not an Android restoration.
+
+## Sending logs (freezes, crashes)
+
+Right after the problem: force restart (Volume Down + Power), press a volume key at the iOS logo,
+choose **Log access (USB)**, plug the phone into a computer and run one line. It downloads `fastboot`
+if needed and puts `jesvi-logs-<date>.zip` on the Desktop. It only reads logs.
+
+- macOS / Linux (Terminal): `curl -fsSL https://raw.githubusercontent.com/jesvi-eulah/Jesvi-iOS/main/tools/logs/get-logs.sh | bash`
+- Windows (PowerShell): `irm https://raw.githubusercontent.com/jesvi-eulah/Jesvi-iOS/main/tools/logs/get-logs.ps1 | iex`
