@@ -132,7 +132,7 @@ jobs:
     secrets: inherit
   # The S20 needs no UEFI build: it starts at once, in parallel with the S20+ family's Mu job.
   build-s20:
-    name: Build Galaxy S20 (${{ matrix.target == 'x1slte' && 'x1s' || matrix.target }})
+    name: Build Galaxy S20
     needs: configuration
     if: needs.configuration.outputs.s20 == 'true'
     strategy:
@@ -395,7 +395,7 @@ jobs:
           if-no-files-found: ignore
   # S20+ and S20 Ultra: the same steps (YAML anchors above), after their shared UEFI loader job.
   build-s20plus:
-    name: Build Galaxy S20+ (${{ matrix.target }})
+    name: Build Galaxy S20+
     needs: [configuration, y2s-board]
     if: >-
       ${{ !cancelled() && inputs.s20plus && needs.configuration.result == 'success' &&
@@ -409,7 +409,7 @@ jobs:
     env: *phone-env
     steps: *phone-steps
   build-s20ultra:
-    name: Build Galaxy S20 Ultra (${{ matrix.target }})
+    name: Build Galaxy S20 Ultra
     needs: [configuration, y2s-board]
     if: >-
       ${{ !cancelled() && inputs.s20ultra && needs.configuration.result == 'success' &&
