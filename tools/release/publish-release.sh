@@ -19,12 +19,19 @@ sha() { if command -v sha256sum >/dev/null; then sha256sum "$@"; else shasum -a 
 stage=$(mktemp -d); trap 'rm -rf "$stage"' EXIT
 
 shopt -s nullglob
-inst=("$dir"/Jesvi-iOS_*.zip); rest=("$dir"/Jesvi-iOS-Restore_*.zip)
-[ ${#inst[@]} -eq 1 ] || { echo "expected one installer ZIP in $dir" >&2; exit 1; }
-iname=$(basename "${inst[0]}")
+# DIR is either a full build output (installer ZIP present) or the build's small release files
+# (installer's .sha256 and .size only). The installer's checksum always comes from its .sha256.
+rest=("$dir"/Jesvi-iOS-Restore_*.zip)
+isums=("$dir"/Jesvi-iOS_*.zip.sha256)
+[ ${#isums[@]} -eq 1 ] || { echo "expected one installer .sha256 in $dir" >&2; exit 1; }
+iname=$(basename "${isums[0]}" .sha256)
+isha=$(awk '{print $1}' "${isums[0]}")
+[[ $isha =~ ^[0-9a-f]{64}$ ]] || { echo "bad checksum in ${isums[0]}" >&2; exit 1; }
+if [ -f "$dir/$iname" ]; then bytes=$(wc -c < "$dir/$iname"); else bytes=$(cat "$dir/$iname.size"); fi
+[[ $bytes =~ ^[0-9]+$ ]] || { echo "installer size unknown" >&2; exit 1; }
 board=$(sed -nE 's/^Jesvi-iOS_.*_([a-z0-9-]+)\.zip$/\1/p' <<<"$iname")
 [ -n "$board" ] || { echo "cannot read the board from $iname" >&2; exit 1; }
-gb=$(awk -v b="$(wc -c < "${inst[0]}")" 'BEGIN{printf "%.2f", b/1e9}')
+gb=$(awk -v b="$bytes" 'BEGIN{printf "%.2f", b/1e9}')
 
 if ! gh release view "$tag" >/dev/null 2>&1; then
   gh release create "$tag" --draft --title "Jesvi iOS $tag" --notes "Building..." --target "${GITHUB_SHA:-main}"
@@ -32,7 +39,7 @@ fi
 # Merge with what earlier board builds put on this release.
 mkdir -p "$stage/old"
 gh release download "$tag" --pattern SHA256SUMS --pattern installers.txt --dir "$stage/old" 2>/dev/null || true
-{ cat "$stage/old/SHA256SUMS" 2>/dev/null || true; (cd "$dir" && sha "$iname" "${rest[@]##*/}"); } |
+{ cat "$stage/old/SHA256SUMS" 2>/dev/null || true; echo "$isha  $iname"; [ ${#rest[@]} -eq 0 ] || (cd "$dir" && sha "${rest[@]##*/}"); } |
   awk '{seen[$2]=$0} END{for(k in seen) print seen[k]}' | sort -k2 > "$stage/SHA256SUMS"
 # Keep installer links the maintainer already pasted into the notes ("- [Installer](URL)" under "### ... (board)").
 gh release view "$tag" --json body --jq .body > "$stage/body.md" 2>/dev/null || true
@@ -46,7 +53,7 @@ pasted() { awk -v b="($1)" '/^### /{on=(index($0,b)>0)} on && /^- \[Installer\]\
   echo "$board $gb $iname $link"
 } | sort > "$stage/installers.txt"
 rm -f "$stage/body.md"
-cp "${rest[@]}" "$stage/"
+[ ${#rest[@]} -eq 0 ] || cp "${rest[@]}" "$stage/"
 rm -rf "$stage/old"
 gh release upload "$tag" --clobber "$stage"/*
 

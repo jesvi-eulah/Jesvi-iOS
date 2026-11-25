@@ -28,7 +28,16 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y age xxd
           tools/devices/fetch-boot-dtb.sh "$RUNNER_TEMP/stock/trees"
+      # Mu-y2s.img comes only from public sources (Mu-Silicium commit, our overlay, the pinned
+      # public boot DTB), so a plain cache is safe. The key changes whenever any of them does.
+      - name: Reuse a cached Mu-Silicium build
+        id: mu-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/mu-cache
+          key: mu-y2s-${{ hashFiles('devices/exynos990/y2s/legacy/uefi-y2s/**', 'devices/exynos990/platform.conf', '.github/workflows/y2s-firmware.yml') }}
       - name: Build Mu-Silicium for y2s
+        if: steps.mu-cache.outputs.cache-hit != 'true'
         run: |
           set -euo pipefail
           overlay="$GITHUB_WORKSPACE/devices/exynos990/y2s/legacy/uefi-y2s"
@@ -53,7 +62,25 @@ jobs:
           if not data.startswith(b'ANDROID!') or slot != b'\xff' * 0x80000:
               raise SystemExit('Mu boot image does not contain the expected y2s payload slot')
           PYTHON
-          cp Mu-y2s.img "$RUNNER_TEMP/stock/trees/"
+          mkdir -p "$RUNNER_TEMP/mu-cache"
+          cp Mu-y2s.img "$RUNNER_TEMP/mu-cache/"
+      - name: Save the Mu-Silicium build for later runs
+        if: steps.mu-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/mu-cache
+          key: ${{ steps.mu-cache.outputs.cache-primary-key }}
+      - name: Stage the Mu image
+        run: |
+          set -euo pipefail
+          python3 - "$RUNNER_TEMP/mu-cache/Mu-y2s.img" <<'PYTHON'
+          import sys
+          from pathlib import Path
+          data = Path(sys.argv[1]).read_bytes()
+          if not data.startswith(b'ANDROID!') or data[0x100870:0x180870] != b'\xff' * 0x80000:
+              raise SystemExit('cached Mu image does not contain the expected y2s payload slot')
+          PYTHON
+          cp "$RUNNER_TEMP/mu-cache/Mu-y2s.img" "$RUNNER_TEMP/stock/trees/"
       - name: Encrypt the board inputs for the macOS build
         env:
           AGE_IDENTITY: ${{ secrets.HOSTED_BOARD_INPUTS_AGE_KEY }}

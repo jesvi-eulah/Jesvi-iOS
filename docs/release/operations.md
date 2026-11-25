@@ -204,14 +204,14 @@ visibility change alone does not publish full images.
 
 | Input | What it does |
 |---|---|
-| target | `x1slte` Galaxy S20, `y2s` Galaxy S20+ 5G |
+| s20 / s20plus / s20ultra | tick the phones to build; each builds on its own Mac, in parallel |
 | runner | GitHub macOS 15, macOS 26, or the private Mac |
 | mode / writes / outputs | install mode, preflight vs flashable, which packages |
 | version | version label in the ZIP names (empty = `release.conf`) |
 | data_gb | iOS data volume size (`all`, 32, 64, 96); y2s always uses all |
 | disable_mods | optional features to leave out (`devices/exynos990/mods`) |
 | keep_days | how long the downloadable ZIPs stay on GitHub |
-| release_tag | add this build to GitHub release TAG (e.g. `v0.4`); run once per phone with the same tag |
+| release_tag | add every ticked phone to GitHub release TAG (e.g. `v0.4`) in one final step |
 | release_state | `draft` (press Publish on GitHub yourself) or `publish` |
 
 The run title shows version, phone, mode and writes; the run summary lists every setting used.
@@ -230,3 +230,21 @@ The installer is one file over GitHub's 2 GiB asset limit, so it is hosted elsew
 
 Building the other phone with the same tag adds its block and keeps links you already pasted. A rebuild
 that makes a different installer file puts that phone back to the placeholder.
+
+### Parallel builds and caches
+
+There is no workflow-wide queue: every ticked phone gets its own macOS runner (public repositories
+have five), and separate runs can overlap. The S20+ and S20 Ultra share one Mu-Silicium job. The
+release step runs once at the end of a run, one run at a time per tag, and adds the phones in turn.
+
+Caches (GitHub keeps 10 GB per repository and drops the least used first):
+
+| Cache | Key | Stored |
+|---|---|---|
+| Mu-y2s UEFI | hash of the y2s overlay, `platform.conf`, the firmware workflow | plain (public sources) |
+| Go toolchain, OpenH264 | `ci/sources.lock.json` and their build scripts | plain |
+| Kernel tree and objects | `tools/release/source_key.py` | plain; shared by all phones |
+| Apple extraction | the extraction recipe fingerprint | **age-encrypted** with `HOSTED_BOARD_INPUTS_AGE_KEY` |
+
+Forks' pull-request runs can read default-branch caches, which is why the Apple files are encrypted.
+A restored extraction is checked against `sysimage/extraction.json` before use; a mismatch re-extracts.
