@@ -64,7 +64,7 @@ jobs:
           echo "key=kernel-v1-${RUNNER_OS}-${RUNNER_ARCH}-${compiler}-${source_key}" >> "$GITHUB_OUTPUT"
       - name: Restore exact source-built kernel
         id: cache
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: out/kernel
           key: ${{ steps.identity.outputs.key }}
