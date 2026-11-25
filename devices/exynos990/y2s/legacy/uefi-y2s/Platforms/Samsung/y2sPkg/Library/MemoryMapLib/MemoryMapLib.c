@@ -15,7 +15,13 @@ gMemoryDescriptor[] = {
   {"XNU Download",       0xF0000000, 0x01000000, AddMem, SYS_MEM, SYS_MEM_CAP, BsData, WRITE_BACK}, // staging for the kernel/root image the host sends
   {"Display Reserved",   0xF1000000, 0x01194000, AddMem, MEM_RES, SYS_MEM_CAP, Reserv, WRITE_THROUGH},
   {"RAM Partition",      0xF2194000, 0x00001000, AddMem, SYS_MEM, SYS_MEM_CAP, Conv,   WRITE_BACK}, // TEMP: Needed for MMU to Pass.
+  // Samsung's sboot keeps EL2 (hypervisor) early memory at the top of DRAM, so its place depends on the
+  // RAM size: 0xAFE800000 (24 MB) on 12 GB phones (G986B, G988B), 0x9FEC00000 (20 MB) on 8 GB phones
+  // (G985F, like the S20's x1sltePkg). Both are reserved: on an 8 GB G985F the XNU window
+  // (0x880000000 + 6 GB = 0xA00000000) covers 0x9FEC00000, and overwriting EL2 memory froze the phone at
+  // random. On 12 GB phones the 8 GB location is ordinary RAM; reserving it costs 20 MB.
   {"EL2 Early Memory",   0xAFE800000,0x01800000, AddMem, SYS_MEM, SYS_MEM_CAP, Reserv, WRITE_BACK},
+  {"EL2 Early Mem 8GB",  0x9FEC00000,0x01400000, AddMem, SYS_MEM, SYS_MEM_CAP, Reserv, WRITE_BACK},
 
   // iRAM Regions
   {"IRAM",               0x02020000, 0x00018000, AddDev, MMAP_IO, UNCACHEABLE, MmIO,   DEVICE},
