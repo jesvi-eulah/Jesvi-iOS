@@ -123,3 +123,24 @@ func TestImageValidationRejectsIncompatibleHeader(t *testing.T) {
 		t.Fatal("truncated boot accepted")
 	}
 }
+
+func TestCapacityFitsLargerUserdataOnly(t *testing.T) {
+	const ud = 116253523968
+	for _, tc := range []struct {
+		name     string
+		actual   uint64
+		measured int64
+		ok       bool
+	}{
+		{"userdata", ud, ud, true},
+		{"userdata", 496000000000, ud, true}, // 512 GB model
+		{"userdata", ud - 4096, ud, false},
+		{"super", 9437184000, 9437184000, true},
+		{"super", 9437184000 + 4096, 9437184000, false},
+		{"boot", 61865984 - 4096, 61865984, false},
+	} {
+		if capacityFits(tc.name, tc.actual, tc.measured) != tc.ok {
+			t.Errorf("%+v", tc)
+		}
+	}
+}

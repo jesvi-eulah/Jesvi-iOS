@@ -59,6 +59,16 @@ type Bundle struct {
 var imageParts = map[string]string{"boot.img": "boot", "recovery.img": "recovery", "system.apfs": "super"}
 
 // Measured x1slte geometry; replaced by the device profile bound into each ZIP.
+// capacityFits: boot, recovery and super must have exactly the measured size. userdata may be
+// larger (256/512 GB storage models): iOS's data volume (dataBytes) sits at its start and the
+// rest stays unused, so a bigger partition never changes what is written or where.
+func capacityFits(name string, actual uint64, measured int64) bool {
+	if name == "userdata" {
+		return actual >= uint64(measured)
+	}
+	return actual == uint64(measured)
+}
+
 var capacities = map[string]int64{"boot": 61865984, "recovery": 69009408, "super": 9437184000, "userdata": 116253523968}
 var systemMax int64 = 4 << 30
 

@@ -88,12 +88,14 @@ For S20+ 5G, use the [y2s build guide](tools/y2s/README.md) to prepare the board
 ### x1s · Galaxy S20
 
 - **SM-G980F** (LTE, `x1slte`) — **Update tested.** The phone booted with user data intact after a TWRP update on `G980FXXSNHYB7`. Use the LTE fresh-install or update ZIP. [Test record](docs/release/qualification-x1slte.md) · [Install guide](docs/release/install.md)
-- **SM-G981B** (5G) — **Untested.** Flash the same `x1s` ZIP: it installs when every partition size matches the G980F exactly, and stops with the mismatching partition otherwise. The 5G model has a different modem and RAM configuration.
+- **SM-G981B** (5G) — **Untested.** Flash the same `x1s` ZIP: it installs when boot, recovery and super match the G980F exactly (userdata may be larger), and stops with the mismatching partition otherwise. The 5G model has a different modem and RAM configuration.
 
 ### y2s · Galaxy S20+
 
-- **SM-G985F** (LTE) — **Untested.** Flash the same `y2s` ZIP: it installs when every partition size matches the G986B exactly, and stops with the mismatching partition otherwise. The LTE boot chain and partition layout still need measurement.
+- **SM-G985F** (LTE) — **Untested.** Flash the same `y2s` ZIP: it installs when boot, recovery and super match the G986B exactly (userdata may be larger), and stops with the mismatching partition otherwise. The LTE boot chain and partition layout still need measurement.
 - **SM-G986B** (5G) — **Boot-tested.** The board and partitions were measured on `G986BXXSNHYB1`. The development port uses TWRP for fresh installs and the USB loader for updates. Fresh-install and peripheral testing is pending. [Board evidence](docs/release/device-evidence-y2s.md) · [Install guide](tools/y2s/README.md)
+
+Larger storage models (256/512 GB) install too: iOS uses the first 116 GB of userdata for now and the rest stays unused.
 
 For regional G980 and G986 devices, recovery accepts firmware revisions that identify the phone’s model and warns on untested revisions. It also checks the Exynos SoC, bootloader unlock state and partition sizes. These builds support Exynos hardware only.
 

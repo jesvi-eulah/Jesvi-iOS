@@ -161,7 +161,7 @@ func inspectNode(f *os.File, path, name string, size int64) (partition, error) {
 	id := deviceID(dev)
 	var bytes uint64
 	_, _, errno := syscall.Syscall(syscall.SYS_IOCTL, f.Fd(), 0x80081272, uintptr(unsafe.Pointer(&bytes))) // BLKGETSIZE64
-	if errno != 0 || bytes != uint64(size) {
+	if errno != 0 || !capacityFits(name, bytes, size) {
 		return partition{}, fmt.Errorf("%s partition capacity differs from measured profile", name)
 	}
 	sys := filepath.Join("/sys/dev/block", id)
