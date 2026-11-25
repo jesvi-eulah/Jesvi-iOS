@@ -73,7 +73,7 @@ permissions:
 # Only the release step is serialized per tag (job "release" below).
 jobs:
   configuration:
-    name: Check build settings
+    name: 1. Check settings
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
@@ -123,6 +123,7 @@ jobs:
             exit 1
           fi
   y2s-board:
+    name: "2. S20+ / S20 Ultra: UEFI loader"
     needs: configuration
     # S20+ and S20 Ultra share the y2s UEFI (Mu-y2s) and boot DTBH.
     if: needs.configuration.outputs.y2s_family == 'true' && inputs.runner != 'self-hosted'
@@ -131,7 +132,7 @@ jobs:
     secrets: inherit
   # The S20 needs no UEFI build: it starts at once, in parallel with the S20+ family's Mu job.
   candidate-s20:
-    name: Build ${{ matrix.target }}
+    name: "3. Build ${{ matrix.target == 'x1slte' && 'Galaxy S20 (x1s)' || (matrix.target == 'y2s' && 'Galaxy S20+ (y2s)' || 'Galaxy S20 Ultra (z3s)') }}"
     needs: configuration
     if: needs.configuration.outputs.s20 == 'true'
     strategy:
@@ -394,7 +395,7 @@ jobs:
           if-no-files-found: ignore
   # S20+ and S20 Ultra: same steps (YAML anchors above), after their shared Mu-y2s job.
   candidate:
-    name: Build ${{ matrix.target }}
+    name: "3. Build ${{ matrix.target == 'x1slte' && 'Galaxy S20 (x1s)' || (matrix.target == 'y2s' && 'Galaxy S20+ (y2s)' || 'Galaxy S20 Ultra (z3s)') }}"
     needs: [configuration, y2s-board]
     if: >-
       ${{ !cancelled() && needs.configuration.outputs.y2s_family == 'true' &&
@@ -409,7 +410,7 @@ jobs:
     env: *phone-env
     steps: *phone-steps
   release:
-    name: Add the phones to the GitHub release
+    name: 4. Add to the GitHub release
     needs: [configuration, candidate-s20, candidate]
     # Runs once after every phone, even if one failed: finished phones are still added.
     if: ${{ !cancelled() && inputs.release_tag != '' && needs.configuration.result == 'success' }}

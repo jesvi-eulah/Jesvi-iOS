@@ -1,4 +1,4 @@
-name: Build S20+ 5G UEFI and board inputs
+name: S20+ family UEFI loader
 on:
   workflow_dispatch:
   workflow_call:
@@ -13,6 +13,7 @@ permissions:
   contents: read
 jobs:
   firmware:
+    name: Mu-Silicium
     if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     runs-on: ubuntu-24.04-arm
     environment: private-images
