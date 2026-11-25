@@ -1,18 +1,19 @@
 #!/usr/bin/env bash
-# publish-release.sh TAG DIR INSTALLER_URL [draft|publish]
+# publish-release.sh TAG DIR [INSTALLER_URL] [draft|publish]
 # Add one board build (DIR = the workflow's release output) to GitHub release TAG and rewrite
-# its notes for every board the release holds. Run once per board (x1s, y2s, ...).
-#   - The installer stays ONE file. It is over GitHub's 2 GiB release-asset limit, so the
-#     notes link INSTALLER_URL (the build's artifact download) instead of uploading it.
-#     Artifact links need a GitHub login and expire with the artifact's retention.
+# its notes (UN1CA/ExtremeROM layout: Changelog, then Download per phone). Run once per board.
+#   - The installer stays ONE file (over GitHub's 2 GiB asset limit), hosted by the maintainer:
+#     the notes keep a placeholder line "INSTALLER LINK: x1s" to replace by hand, unless
+#     INSTALLER_URL is given.
 #   - Restore ZIPs go on the release; SHA256SUMS lists every ZIP, the installer included.
 #   - draft (default) stays hidden until you press Publish on GitHub.
 # Needs GH_TOKEN with contents:write and GH_REPO=owner/repo.
 set -euo pipefail
-tag=${1:?usage: publish-release.sh TAG DIR INSTALLER_URL [draft|publish]}; dir=${2:?dir}; link=${3:?installer url}; state=${4:-draft}
+tag=${1:?usage: publish-release.sh TAG DIR [INSTALLER_URL] [draft|publish]}; dir=${2:?dir}; link=${3:-}; state=${4:-draft}
 [[ $tag =~ ^v[0-9][0-9A-Za-z.+-]{0,31}$ ]] || { echo "tag must look like v0.4 or v0.4-beta1" >&2; exit 2; }
 [[ $state == draft || $state == publish ]] || { echo "state: draft or publish" >&2; exit 2; }
-[[ $link =~ ^https://[^[:space:]]+$ ]] || { echo "installer url must be https" >&2; exit 2; }
+[[ -z $link || $link =~ ^https://[^[:space:]]+$ ]] || { echo "installer url must be https" >&2; exit 2; }
+link=${link:--}
 : "${GH_REPO:?set GH_REPO}"
 sha() { if command -v sha256sum >/dev/null; then sha256sum "$@"; else shasum -a 256 "$@"; fi; }
 stage=$(mktemp -d); trap 'rm -rf "$stage"' EXIT
@@ -33,29 +34,51 @@ mkdir -p "$stage/old"
 gh release download "$tag" --pattern SHA256SUMS --pattern installers.txt --dir "$stage/old" 2>/dev/null || true
 { cat "$stage/old/SHA256SUMS" 2>/dev/null || true; (cd "$dir" && sha "$iname" "${rest[@]##*/}"); } |
   awk '{seen[$2]=$0} END{for(k in seen) print seen[k]}' | sort -k2 > "$stage/SHA256SUMS"
-{ grep -v "^$board " "$stage/old/installers.txt" 2>/dev/null || true; echo "$board $gb $iname $link"; } | sort > "$stage/installers.txt"
+# Keep installer links the maintainer already pasted into the notes ("- [Installer](URL)" under "### ... (board)").
+gh release view "$tag" --json body --jq .body > "$stage/body.md" 2>/dev/null || true
+pasted() { awk -v b="($1)" '/^### /{on=(index($0,b)>0)} on && /^- \[Installer\]\(https:/{sub(/^- \[Installer\]\(/,""); sub(/\).*$/,""); print; exit}' "$stage/body.md"; }
+{
+  while read -r b size name href; do
+    [ "$b" = "$board" ] && continue
+    p=$(pasted "$b"); echo "$b $size $name ${p:-$href}"
+  done < <(cat "$stage/old/installers.txt" 2>/dev/null || true)
+  p=$(pasted "$board"); [ "$link" = - ] && [ -n "$p" ] && [ "$(awk -v b="$board" '$1==b{print $3}' "$stage/old/installers.txt" 2>/dev/null)" = "$iname" ] && link=$p
+  echo "$board $gb $iname $link"
+} | sort > "$stage/installers.txt"
+rm -f "$stage/body.md"
 cp "${rest[@]}" "$stage/"
 rm -rf "$stage/old"
 gh release upload "$tag" --clobber "$stage"/*
 
 url="https://github.com/$GH_REPO/releases/download/$tag"
-title() { case $1 in x1s) echo "Galaxy S20 · SM-G980F / SM-G981B";; y2s) echo "Galaxy S20+ · SM-G986B / SM-G985F";; *) echo "$1";; esac; }
+title() { case $1 in x1s) echo "Galaxy S20 (4G/5G)";; y2s) echo "Galaxy S20+ (4G/5G)";; *) echo "$1";; esac; }
 restores=$(gh release view "$tag" --json assets --jq '.assets[].name' | grep '^Jesvi-iOS-Restore_' || true)
+ref=${GITHUB_SHA:-$(git rev-parse HEAD)}
+prev=$(git describe --tags --abbrev=0 --match 'v*' "$ref^" 2>/dev/null || true)
 {
-  echo "iOS 16.5 (20F66) for Exynos 990 Galaxy phones."
+  echo "iOS 16.5 (20F66) for Exynos 990 Galaxy phones. Needs TWRP and an unlocked bootloader."
+  echo; echo "## Changelog"
+  if [ -n "$prev" ]; then
+    git log --no-merges --format='- %s' "$prev..$ref" -- . ':!docs' ':!*.md' | grep -viE '^- (docs|tests?|ci):' | head -15
+  else
+    echo "- First release built by CI"
+  fi
+  echo; echo "## Download"
   while read -r b size name href; do
-    echo; echo "### $b Downloads ($(title "$b"))"; echo
-    echo "- [Jesvi iOS installer · $size GB]($href) (\`$name\`, inside the download's artifact ZIP; GitHub login needed)"
+    echo; echo "### $(title "$b") ($b)"
+    if [ "$href" = - ]; then echo "- Installer: **INSTALLER LINK: $b**"; else echo "- [Installer]($href)"; fi
     for r in $(grep -E "_${b}\.zip$" <<<"$restores" || true); do echo "- [Restore to Android]($url/$r)"; done
+    echo '```'
+    echo "File: $name ($size GB)"
+    echo "SHA256: $(awk -v n="$name" '$2==n{print $1}' "$stage/SHA256SUMS")"
+    echo '```'
   done < "$stage/installers.txt"
-  echo; echo "- [SHA256SUMS]($url/SHA256SUMS)"
   echo
-  echo "Install: unzip the download, then TWRP → Install → the \`Jesvi-iOS_…zip\`. It checks the phone, then starts"
-  echo "after **10 seconds**: press **Volume Up** to start at once, **Volume Down** or **Power** to cancel. Fresh install erases userdata."
-  echo "Restore checks the phone and erases iOS data only after you press **Volume Up**."
+  echo "## Install"
+  echo "TWRP → Install → the installer ZIP. It checks the phone, then starts after **10 s**:"
+  echo "**Volume Up** starts now, **Volume Down** or **Power** cancels. Fresh install erases userdata."
   echo
-  ref=${GITHUB_SHA:-$(git rev-parse HEAD)}
-  echo "[Install guide](https://github.com/$GH_REPO/blob/$ref/docs/release/install.md) · [Rollback guide](https://github.com/$GH_REPO/blob/$ref/docs/release/rollback.md)"
+  echo "[Install guide](https://github.com/$GH_REPO/blob/$ref/docs/release/install.md) · [Back to Android](https://github.com/$GH_REPO/blob/$ref/docs/release/rollback.md) · [All checksums]($url/SHA256SUMS)"
 } > "$stage/notes.md"
 gh release edit "$tag" --notes-file "$stage/notes.md"
 [ "$state" = publish ] && gh release edit "$tag" --draft=false

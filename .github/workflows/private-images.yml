@@ -281,9 +281,10 @@ jobs:
           GH_REPO: ${{ github.repository }}
           TAG: ${{ inputs.release_tag }}
           STATE: ${{ inputs.release_state }}
-          PACKAGE_URL: ${{ steps.packages.outputs.artifact-url }}
         run: |
-          bash tools/release/publish-release.sh "$TAG" "$RELEASE_OUT" "$PACKAGE_URL" "$STATE" | tee -a "$GITHUB_STEP_SUMMARY"
+          # The installer link is a placeholder ("INSTALLER LINK: <board>"): the maintainer hosts the
+          # installer (download it from this run's artifact) and pastes the link into the release notes.
+          bash tools/release/publish-release.sh "$TAG" "$RELEASE_OUT" "" "$STATE" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Upload build diagnostics
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

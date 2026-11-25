@@ -220,6 +220,14 @@ The run title shows version, phone, mode and writes; the run summary lists every
 ### Releases from the build
 
 With `release_tag` set, the build runs `tools/release/publish-release.sh`: it creates the release (draft by
-default), uploads the Restore ZIP and a merged `SHA256SUMS`, and rewrites the notes with one section per phone.
-The installer stays one file. It is larger than GitHub's 2 GiB release-asset limit, so the notes link the build's
-artifact download: it needs a GitHub login, arrives wrapped in an artifact ZIP, and is kept 90 days.
+default), uploads the Restore ZIP and a merged `SHA256SUMS`, and writes short notes in the UN1CA/ExtremeROM
+layout (Changelog since the previous tag, then one Download block per phone with the file name and SHA-256).
+
+The installer is one file over GitHub's 2 GiB asset limit, so it is hosted elsewhere:
+
+1. Download it from the run's artifact (kept 90 days for release builds) and upload it to your host.
+2. Edit the release and replace `**INSTALLER LINK: x1s**` with `[Installer](https://your-link)`.
+3. Press Publish.
+
+Building the other phone with the same tag adds its block and keeps links you already pasted. A rebuild
+that makes a different installer file puts that phone back to the placeholder.
